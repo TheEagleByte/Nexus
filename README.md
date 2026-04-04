@@ -98,6 +98,47 @@ Skills accumulate over time as agents learn codebase conventions, decision ratio
 - Post-MVP adds Google OAuth, mTLS, TLS 1.3, and remote access via Tailscale/Cloudflare Tunnel
 - Full security model documented in [`docs/security-model.md`](docs/security-model.md)
 
+## Getting Started
+
+### Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Docker](https://docs.docker.com/get-docker/)
+
+### Setup
+
+1. Start PostgreSQL:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. Run the Hub API:
+
+   ```bash
+   cd src
+   dotnet run --project Nexus.Hub.Api
+   ```
+
+   The API starts on `http://localhost:5000` and auto-applies EF Core migrations on first run.
+
+3. (Optional) To manually manage migrations:
+
+   ```bash
+   cd src
+   dotnet ef database update --project Nexus.Hub.Infrastructure --startup-project Nexus.Hub.Api
+   ```
+
+### Connection Details
+
+| Setting  | Value       |
+| -------- | ----------- |
+| Host     | `localhost` |
+| Port     | `5432`      |
+| Database | `nexus`     |
+| Username | `nexus`     |
+| Password | `nexus`     |
+
 ## Documentation
 
 | Document                                               | Description                                                           |

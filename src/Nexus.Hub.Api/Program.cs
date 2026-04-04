@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Nexus.Hub.Infrastructure.Data;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -23,6 +25,9 @@ try
                 new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         });
 
+    builder.Services.AddDbContext<NexusDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
     builder.Services.AddSignalR();
 
     builder.Services.AddCors(options =>
@@ -35,6 +40,12 @@ try
     });
 
     var app = builder.Build();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<NexusDbContext>();
+        db.Database.Migrate();
+    }
 
     app.UseSerilogRequestLogging();
     app.UseRouting();
