@@ -1,10 +1,12 @@
 # Personal claude configuration
 .remember/
-.claude/commands/next-task.md
+.claude/commands/
 
 # .NET
+.vs/
 bin/
 obj/
+TestResults/
 *.user
 *.suo
 *.userprefs

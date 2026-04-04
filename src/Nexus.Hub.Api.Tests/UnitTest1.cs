@@ -2,9 +2,6 @@
 
 public class UnitTest1
 {
-    [Fact]
-    public void Test1()
-    {
-
-    }
+    [Fact(Skip = "Scaffold — replace with real assertions")]
+    public void Test1() { }
 }
