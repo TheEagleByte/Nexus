@@ -1,3 +1,14 @@
 # Personal claude configuration
 .remember/
 .claude/commands/next-task.md
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+*.log
+[Dd]ebug/
+[Rr]elease/
