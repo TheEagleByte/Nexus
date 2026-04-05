@@ -35,11 +35,19 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
         return spoke;
     }
 
-    public Task<Spoke?> GetSpokeAsync(Guid spokeId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Spoke?> GetSpokeAsync(Guid spokeId, CancellationToken cancellationToken = default)
+    {
+        var spoke = await _spokeRepository.GetByIdAsync(spokeId, cancellationToken);
+        if (spoke is null)
+        {
+            _logger.LogWarning("Spoke not found: {SpokeId}", spokeId);
+            throw new Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found");
+        }
+        return spoke;
+    }
 
     public Task<List<Spoke>> ListSpokesAsync(SpokeStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _spokeRepository.ListAsync(status, limit, offset, cancellationToken);
 
     public Task UpdateSpokeStatusAsync(Guid spokeId, SpokeStatus status, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
@@ -54,5 +62,5 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
         => throw new NotImplementedException();
 
     public Task<int> GetSpokeCountAsync(SpokeStatus? status = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _spokeRepository.CountAsync(status, cancellationToken);
 }

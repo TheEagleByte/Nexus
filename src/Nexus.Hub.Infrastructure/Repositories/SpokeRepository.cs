@@ -17,7 +17,7 @@ public class SpokeRepository(NexusDbContext context) : ISpokeRepository
         var query = _context.Spokes.AsQueryable();
         if (status.HasValue)
             query = query.Where(s => s.Status == status.Value);
-        return await query.OrderByDescending(s => s.CreatedAt).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+        return await query.OrderByDescending(s => s.CreatedAt).ThenBy(s => s.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
     }
 
     public async Task<Spoke> AddAsync(Spoke spoke, CancellationToken cancellationToken = default)
