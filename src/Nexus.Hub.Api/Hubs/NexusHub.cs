@@ -38,6 +38,13 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         try
         {
             await _spokeService.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online);
+            _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
+            await ReplayQueuedJobsAsync(spokeId);
+        }
+        catch (NotFoundException)
+        {
+            // Spoke not yet registered in DB — allow connection so it can call RegisterSpoke
+            _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId}) — pending registration", spokeId, Context.ConnectionId);
         }
         catch (Exception ex)
         {
@@ -47,10 +54,6 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             Context.Abort();
             return;
         }
-
-        _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
-
-        await ReplayQueuedJobsAsync(spokeId);
 
         await base.OnConnectedAsync();
     }
