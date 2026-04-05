@@ -143,6 +143,18 @@ public class ProjectsController(
 
         limit = Math.Min(limit, 100);
 
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "'from' must be before or equal to 'to'",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
         await _projectService.GetProjectAsync(projectId, cancellationToken);
 
         var jobs = await _jobService.ListJobsAsync(projectId: projectId, status: status, type: type, from: from, to: to, limit: limit, offset: offset, cancellationToken: cancellationToken);

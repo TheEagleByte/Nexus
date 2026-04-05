@@ -59,11 +59,14 @@ public class JobsController(
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var job = await _jobService.GetJobAsync(id, cancellationToken);
+        if (job is null)
+            return NotFound();
+
         var outputCount = await _jobService.GetJobOutputCountAsync(id, cancellationToken);
 
         var response = new JobDetailResponse
         {
-            Id = job!.Id,
+            Id = job.Id,
             ProjectId = job.ProjectId,
             SpokeId = job.SpokeId,
             Type = job.Type,
@@ -161,11 +164,13 @@ public class JobsController(
         limit = Math.Min(limit, 100);
 
         var job = await _jobService.GetJobAsync(id, cancellationToken);
+        if (job is null)
+            return NotFound();
 
         var chunks = await _jobService.GetJobOutputAsync(id, limit, offset, cancellationToken);
         var totalChunks = await _jobService.GetJobOutputCountAsync(id, cancellationToken);
 
-        var isComplete = job!.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled;
+        var isComplete = job.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled;
 
         var response = new JobOutputResponse
         {
