@@ -9,8 +9,14 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
 {
     private readonly NexusDbContext _context = context;
 
-    public Task<List<OutputStream>> ListByJobAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<List<OutputStream>> ListByJobAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
+        => await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .OrderBy(o => o.Sequence)
+            .ThenBy(o => o.Id)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
 
     public async Task<OutputStream> AddAsync(OutputStream outputStream, CancellationToken cancellationToken = default)
     {
@@ -19,8 +25,8 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
         return outputStream;
     }
 
-    public Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => await _context.OutputStreams.Where(o => o.JobId == jobId).CountAsync(cancellationToken);
 
     public async Task<long> GetNextSequenceAsync(Guid jobId, CancellationToken cancellationToken = default)
     {
