@@ -97,3 +97,9 @@ public record SpokeMessage(
     string Content,
     Guid? JobId
 );
+
+public record ReconnectionPolicy(
+    int InitialRetryDelayMs = 1000,
+    int MaxRetryDelayMs = 300000,
+    double BackoffMultiplier = 2.0
+);

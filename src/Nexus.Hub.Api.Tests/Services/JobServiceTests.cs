@@ -64,17 +64,37 @@ public class JobServiceTests
     }
 
     [Fact]
-    public async Task GetJobAsync_ThrowsNotImplementedException()
+    public async Task GetJobAsync_ExistingJob_ReturnsJob()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.Queued, Type = JobType.Implement, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        var result = await _sut.GetJobAsync(jobId);
+
+        Assert.Equal(jobId, result!.Id);
+    }
+
+    [Fact]
+    public async Task GetJobAsync_MissingJob_ThrowsNotFoundException()
+    {
+        _jobRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Job?)null);
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
             () => _sut.GetJobAsync(Guid.NewGuid()));
     }
 
     [Fact]
-    public async Task ListJobsAsync_ThrowsNotImplementedException()
+    public async Task ListJobsAsync_DelegatesToRepository()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => _sut.ListJobsAsync());
+        var spokeId = Guid.NewGuid();
+        var jobs = new List<Job> { new() { Id = Guid.NewGuid(), Status = JobStatus.Queued, CreatedAt = DateTimeOffset.UtcNow } };
+        _jobRepo.Setup(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>())).ReturnsAsync(jobs);
+
+        var result = await _sut.ListJobsAsync(spokeId: spokeId, status: JobStatus.Queued);
+
+        Assert.Single(result);
+        _jobRepo.Verify(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -107,9 +127,13 @@ public class JobServiceTests
     }
 
     [Fact]
-    public async Task GetJobCountAsync_ThrowsNotImplementedException()
+    public async Task GetJobCountAsync_DelegatesToRepository()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => _sut.GetJobCountAsync());
+        var spokeId = Guid.NewGuid();
+        _jobRepo.Setup(r => r.CountAsync(spokeId, null, null, It.IsAny<CancellationToken>())).ReturnsAsync(5);
+
+        var result = await _sut.GetJobCountAsync(spokeId: spokeId);
+
+        Assert.Equal(5, result);
     }
 }

@@ -12,14 +12,35 @@ public class JobRepository(NexusDbContext context) : IJobRepository
     public async Task<Job?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => await _context.Jobs.FindAsync([id], cancellationToken);
 
-    public Task<List<Job>> ListByProjectAsync(Guid projectId, JobStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<List<Job>> ListByProjectAsync(Guid projectId, JobStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Jobs.Where(j => j.ProjectId == projectId);
+        if (status.HasValue)
+            query = query.Where(j => j.Status == status.Value);
+        return await query.OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+    }
 
-    public Task<List<Job>> ListBySpokeAsync(Guid spokeId, JobStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<List<Job>> ListBySpokeAsync(Guid spokeId, JobStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Jobs.Where(j => j.SpokeId == spokeId);
+        if (status.HasValue)
+            query = query.Where(j => j.Status == status.Value);
+        return await query.OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+    }
 
-    public Task<List<Job>> ListAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<List<Job>> ListAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Jobs.AsQueryable();
+        if (spokeId.HasValue)
+            query = query.Where(j => j.SpokeId == spokeId.Value);
+        if (projectId.HasValue)
+            query = query.Where(j => j.ProjectId == projectId.Value);
+        if (status.HasValue)
+            query = query.Where(j => j.Status == status.Value);
+        if (type.HasValue)
+            query = query.Where(j => j.Type == type.Value);
+        return await query.OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
+    }
 
     public async Task<Job> AddAsync(Job job, CancellationToken cancellationToken = default)
     {
@@ -34,6 +55,15 @@ public class JobRepository(NexusDbContext context) : IJobRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public Task<int> CountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<int> CountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Jobs.AsQueryable();
+        if (spokeId.HasValue)
+            query = query.Where(j => j.SpokeId == spokeId.Value);
+        if (projectId.HasValue)
+            query = query.Where(j => j.ProjectId == projectId.Value);
+        if (status.HasValue)
+            query = query.Where(j => j.Status == status.Value);
+        return await query.CountAsync(cancellationToken);
+    }
 }

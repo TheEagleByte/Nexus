@@ -48,6 +48,8 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
 
         _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
 
+        await ReplayQueuedJobsAsync(spokeId);
+
         await base.OnConnectedAsync();
     }
 
@@ -129,12 +131,16 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             "Spoke {SpokeId} registered: {SpokeName} (CorrelationId: {CorrelationId})",
             spokeId, registration.Name, correlationId);
 
-        await Clients.Caller.SendAsync("SpokeRegistered", new SpokeInfo(
-            spokeId,
-            registration.Name,
-            SpokeStatus.Online,
-            spoke?.CreatedAt ?? DateTimeOffset.UtcNow
-        ));
+        await Clients.Caller.SendAsync("SpokeRegistered", new
+        {
+            Info = new SpokeInfo(
+                spokeId,
+                registration.Name,
+                SpokeStatus.Online,
+                spoke?.CreatedAt ?? DateTimeOffset.UtcNow
+            ),
+            ReconnectionPolicy = new ReconnectionPolicy()
+        });
     }
 
     public async Task Heartbeat(SpokeHeartbeat heartbeat)
@@ -246,6 +252,39 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         _logger.LogInformation(
             "Project {ProjectId} status changed to {NewStatus} (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
             projectId, newStatus, spokeId, correlationId);
+    }
+
+    private async Task ReplayQueuedJobsAsync(Guid spokeId)
+    {
+        try
+        {
+            var queuedJobs = await _jobService.ListJobsAsync(spokeId: spokeId, status: JobStatus.Queued);
+            if (queuedJobs.Count == 0)
+                return;
+
+            _logger.LogInformation("Replaying {Count} queued job(s) to spoke {SpokeId}", queuedJobs.Count, spokeId);
+
+            foreach (var job in queuedJobs)
+            {
+                var assignment = new JobAssignment(
+                    JobId: job.Id,
+                    ProjectId: job.ProjectId,
+                    Type: job.Type,
+                    Context: job.Summary ?? string.Empty,
+                    Parameters: new JobParameters(null),
+                    RequireApproval: job.ApprovalRequired,
+                    AssignedAt: job.CreatedAt
+                );
+
+                await Clients.Caller.SendAsync("AssignJob", assignment);
+
+                _logger.LogInformation("Replayed job {JobId} to spoke {SpokeId}", job.Id, spokeId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to replay queued jobs for spoke {SpokeId}", spokeId);
+        }
     }
 
     public async Task MessageFromSpoke(SpokeMessage message)

@@ -33,11 +33,19 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
         return job;
     }
 
-    public Task<Job?> GetJobAsync(Guid jobId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Job?> GetJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId, cancellationToken);
+        if (job is null)
+        {
+            _logger.LogWarning("Job not found: {JobId}", jobId);
+            throw new Domain.Exceptions.NotFoundException($"Job {jobId} not found");
+        }
+        return job;
+    }
 
     public Task<List<Job>> ListJobsAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _jobRepository.ListAsync(spokeId, projectId, status, type, limit, offset, cancellationToken);
 
     public Task ApproveJobAsync(Guid jobId, bool approved = true, string? approvedBy = null, JsonDocument? modifications = null, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
@@ -67,5 +75,5 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
     }
 
     public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _jobRepository.CountAsync(spokeId, projectId, status, cancellationToken);
 }

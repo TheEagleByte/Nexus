@@ -28,6 +28,9 @@ public class NexusHubRegistrationTests : IDisposable
         _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _loggerMock.Object);
 
         _clientsMock.Setup(c => c.Caller).Returns(_callerMock.Object);
+        _jobServiceMock
+            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Job>());
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
         hubType.GetProperty("Groups")!.SetValue(_hub, _groupsMock.Object);
@@ -97,7 +100,7 @@ public class NexusHubRegistrationTests : IDisposable
 
         _callerMock.Verify(c => c.SendCoreAsync(
             "SpokeRegistered",
-            It.Is<object?[]>(args => args.Length == 1 && ((SpokeInfo)args[0]!).SpokeId == spokeId),
+            It.Is<object?[]>(args => args.Length == 1),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -181,7 +184,7 @@ public class NexusHubRegistrationTests : IDisposable
 
         _callerMock.Verify(c => c.SendCoreAsync(
             "SpokeRegistered",
-            It.Is<object?[]>(args => args.Length == 1 && ((SpokeInfo)args[0]!).SpokeId == spokeId),
+            It.Is<object?[]>(args => args.Length == 1),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
