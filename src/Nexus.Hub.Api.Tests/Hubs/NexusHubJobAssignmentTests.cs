@@ -18,7 +18,8 @@ public class NexusHubJobAssignmentTests : IDisposable
     private readonly Mock<IJobService> _jobServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
     private readonly Mock<IGroupManager> _groupsMock = new();
-    private readonly Mock<IHubCallerClients> _clientsMock = new();
+    private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
+    private readonly Mock<IHubClients> _hubClientsMock = new();
     private readonly Mock<ISingleClientProxy> _groupClientMock = new();
     private readonly NexusHub _hub;
 
@@ -26,9 +27,11 @@ public class NexusHubJobAssignmentTests : IDisposable
     {
         _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _loggerMock.Object);
 
+        _hubClientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_groupClientMock.Object);
+        _hubContextMock.Setup(c => c.Clients).Returns(_hubClientsMock.Object);
+
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
         hubType.GetProperty("Groups")!.SetValue(_hub, _groupsMock.Object);
-        hubType.GetProperty("Clients")!.SetValue(_hub, _clientsMock.Object);
     }
 
     public void Dispose()
@@ -60,7 +63,7 @@ public class NexusHubJobAssignmentTests : IDisposable
     }
 
     [Fact]
-    public async Task SendJobAssignment_ConnectedSpoke_SendsToGroup()
+    public async Task DispatchJobAssignment_ConnectedSpoke_SendsToGroup()
     {
         var spokeId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -82,11 +85,9 @@ public class NexusHubJobAssignmentTests : IDisposable
             .Setup(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, false, It.IsAny<JsonDocument>(), default))
             .ReturnsAsync(job);
 
-        _clientsMock
-            .Setup(c => c.Group($"spoke-{spokeId}"))
-            .Returns(_groupClientMock.Object);
-
-        await _hub.SendJobAssignment(spokeId, projectId, JobType.Implement, "Implement feature X", false);
+        await NexusHub.DispatchJobAssignment(
+            _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+            spokeId, projectId, JobType.Implement, "Implement feature X", false);
 
         _jobServiceMock.Verify(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, false, It.IsAny<JsonDocument>(), default), Times.Once);
         _groupClientMock.Verify(c => c.SendCoreAsync(
@@ -96,7 +97,7 @@ public class NexusHubJobAssignmentTests : IDisposable
     }
 
     [Fact]
-    public async Task SendJobAssignment_WithApproval_CreatesAwaitingApprovalJob()
+    public async Task DispatchJobAssignment_WithApproval_CreatesAwaitingApprovalJob()
     {
         var spokeId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -119,11 +120,9 @@ public class NexusHubJobAssignmentTests : IDisposable
             .Setup(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, true, It.IsAny<JsonDocument>(), default))
             .ReturnsAsync(job);
 
-        _clientsMock
-            .Setup(c => c.Group($"spoke-{spokeId}"))
-            .Returns(_groupClientMock.Object);
-
-        await _hub.SendJobAssignment(spokeId, projectId, JobType.Implement, "Implement feature X", true);
+        await NexusHub.DispatchJobAssignment(
+            _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+            spokeId, projectId, JobType.Implement, "Implement feature X", true);
 
         _jobServiceMock.Verify(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, true, It.IsAny<JsonDocument>(), default), Times.Once);
         _groupClientMock.Verify(c => c.SendCoreAsync(
@@ -133,21 +132,22 @@ public class NexusHubJobAssignmentTests : IDisposable
     }
 
     [Fact]
-    public async Task SendJobAssignment_DisconnectedSpoke_ThrowsHubException()
+    public async Task DispatchJobAssignment_DisconnectedSpoke_ThrowsInvalidOperation()
     {
         var spokeId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
 
-        // No spoke connected — map is empty
-        await Assert.ThrowsAsync<HubException>(() =>
-            _hub.SendJobAssignment(spokeId, projectId, JobType.Implement, "context", false));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            NexusHub.DispatchJobAssignment(
+                _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+                spokeId, projectId, JobType.Implement, "context", false));
 
         _jobServiceMock.Verify(s => s.CreateJobAsync(
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<JobType>(), It.IsAny<bool>(), It.IsAny<JsonDocument>(), default), Times.Never);
     }
 
     [Fact]
-    public async Task SendJobAssignment_PayloadIncludesContext()
+    public async Task DispatchJobAssignment_PayloadIncludesContext()
     {
         var spokeId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -170,11 +170,9 @@ public class NexusHubJobAssignmentTests : IDisposable
             .Setup(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, false, It.IsAny<JsonDocument>(), default))
             .ReturnsAsync(job);
 
-        _clientsMock
-            .Setup(c => c.Group($"spoke-{spokeId}"))
-            .Returns(_groupClientMock.Object);
-
-        await _hub.SendJobAssignment(spokeId, projectId, JobType.Implement, contextText, false);
+        await NexusHub.DispatchJobAssignment(
+            _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+            spokeId, projectId, JobType.Implement, contextText, false);
 
         _groupClientMock.Verify(c => c.SendCoreAsync(
             "AssignJob",
@@ -186,7 +184,7 @@ public class NexusHubJobAssignmentTests : IDisposable
     }
 
     [Fact]
-    public async Task SendJobAssignment_WithCustomFields_IncludedInPayload()
+    public async Task DispatchJobAssignment_WithCustomFields_IncludedInPayload()
     {
         var spokeId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
@@ -209,11 +207,9 @@ public class NexusHubJobAssignmentTests : IDisposable
             .Setup(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, false, It.IsAny<JsonDocument>(), default))
             .ReturnsAsync(job);
 
-        _clientsMock
-            .Setup(c => c.Group($"spoke-{spokeId}"))
-            .Returns(_groupClientMock.Object);
-
-        await _hub.SendJobAssignment(spokeId, projectId, JobType.Implement, "context", false, customFields);
+        await NexusHub.DispatchJobAssignment(
+            _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+            spokeId, projectId, JobType.Implement, "context", false, customFields);
 
         _groupClientMock.Verify(c => c.SendCoreAsync(
             "AssignJob",
@@ -222,6 +218,39 @@ public class NexusHubJobAssignmentTests : IDisposable
                 ((JobAssignment)args[0]!).Parameters.CustomFields != null &&
                 ((JobAssignment)args[0]!).Parameters.CustomFields!.ContainsKey("branch")),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DispatchJobAssignment_SendFails_LogsErrorAndThrows()
+    {
+        var spokeId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        var connectionId = $"conn-{Guid.NewGuid()}";
+
+        SetupConnectedSpoke(connectionId, spokeId);
+
+        var job = new Job
+        {
+            Id = Guid.NewGuid(),
+            SpokeId = spokeId,
+            ProjectId = projectId,
+            Type = JobType.Implement,
+            Status = JobStatus.Queued,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        _jobServiceMock
+            .Setup(s => s.CreateJobAsync(spokeId, projectId, JobType.Implement, false, It.IsAny<JsonDocument>(), default))
+            .ReturnsAsync(job);
+
+        _groupClientMock
+            .Setup(c => c.SendCoreAsync("AssignJob", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("SignalR send failed"));
+
+        await Assert.ThrowsAsync<Exception>(() =>
+            NexusHub.DispatchJobAssignment(
+                _hubContextMock.Object, _jobServiceMock.Object, _loggerMock.Object,
+                spokeId, projectId, JobType.Implement, "context", false));
     }
 
     private class HttpContextFeature : IHttpContextFeature
