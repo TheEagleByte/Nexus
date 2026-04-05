@@ -10,6 +10,7 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Tests.Hubs;
 
+[Collection("NexusHub")]
 public class NexusHubTests : IDisposable
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();

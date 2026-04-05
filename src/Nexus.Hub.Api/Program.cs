@@ -34,6 +34,7 @@ try
     builder.Services.AddInfrastructure();
 
     builder.Services.AddSignalR();
+    builder.Services.AddHostedService<SpokeTimeoutService>();
 
     builder.Services.AddCors(options =>
     {

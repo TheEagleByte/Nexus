@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Services;
@@ -74,6 +75,93 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         }
 
         await base.OnDisconnectedAsync(exception);
+    }
+
+    public async Task RegisterSpoke(SpokeRegistration registration)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("RegisterSpoke called from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established. Connect with a valid spokeId first.");
+        }
+
+        var capabilities = JsonSerializer.SerializeToDocument(registration.Capabilities);
+        var config = JsonSerializer.SerializeToDocument(new
+        {
+            registration.Config.ApprovalMode,
+            registration.Config.MaxConcurrentJobs,
+            registration.Config.HeartbeatIntervalSeconds,
+            registration.Os,
+            registration.Architecture,
+            Metadata = registration.Metadata ?? new Dictionary<string, string>()
+        });
+
+        JsonDocument? profile = registration.Profile is not null
+            ? JsonSerializer.SerializeToDocument(registration.Profile)
+            : null;
+
+        var spoke = await _spokeService.GetSpokeAsync(spokeId);
+
+        if (spoke is not null)
+        {
+            await _spokeService.UpdateSpokeConfigAsync(spokeId, registration.Name, config);
+            spoke = await _spokeService.GetSpokeAsync(spokeId);
+        }
+
+        _logger.LogInformation(
+            "Spoke {SpokeId} registered: {SpokeName} (CorrelationId: {CorrelationId})",
+            spokeId, registration.Name, correlationId);
+
+        await Clients.Caller.SendAsync("SpokeRegistered", new SpokeInfo(
+            spokeId,
+            registration.Name,
+            SpokeStatus.Online,
+            spoke?.CreatedAt ?? DateTimeOffset.UtcNow
+        ));
+    }
+
+    public async Task Heartbeat(SpokeHeartbeat heartbeat)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("Heartbeat from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established. Connect with a valid spokeId first.");
+        }
+
+        if (heartbeat.SpokeId != spokeId)
+        {
+            _logger.LogWarning(
+                "Heartbeat spokeId mismatch: connection mapped to {MappedSpokeId} but heartbeat claims {HeartbeatSpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, heartbeat.SpokeId, correlationId);
+            throw new HubException("SpokeId mismatch. Heartbeat spokeId does not match connection.");
+        }
+
+        try
+        {
+            await _spokeService.UpdateSpokeHeartbeatAsync(spokeId);
+
+            if (heartbeat.Status != SpokeStatus.Online)
+            {
+                await _spokeService.UpdateSpokeStatusAsync(spokeId, heartbeat.Status);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process heartbeat for spoke {SpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, correlationId);
+            throw new HubException("Failed to process heartbeat.");
+        }
+
+        _logger.LogDebug("Heartbeat processed for spoke {SpokeId} (CorrelationId: {CorrelationId})",
+            spokeId, correlationId);
+
+        await Clients.Caller.SendAsync("HeartbeatAcknowledged", spokeId, DateTime.UtcNow);
     }
 
     public static Guid? GetSpokeIdByConnection(string connectionId)

@@ -63,11 +63,30 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
         _logger.LogInformation("Spoke {SpokeId} status updated to {Status}", spokeId, status);
     }
 
-    public Task UpdateSpokeHeartbeatAsync(Guid spokeId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task UpdateSpokeHeartbeatAsync(Guid spokeId, CancellationToken cancellationToken = default)
+    {
+        var spoke = await _spokeRepository.GetByIdAsync(spokeId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found");
 
-    public Task UpdateSpokeConfigAsync(Guid spokeId, string? name = null, JsonDocument? config = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        var now = DateTimeOffset.UtcNow;
+        spoke.LastSeen = now;
+        spoke.UpdatedAt = now;
+
+        await _spokeRepository.UpdateAsync(spoke, cancellationToken);
+    }
+
+    public async Task UpdateSpokeConfigAsync(Guid spokeId, string? name = null, JsonDocument? config = null, CancellationToken cancellationToken = default)
+    {
+        var spoke = await _spokeRepository.GetByIdAsync(spokeId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found");
+
+        if (name is not null) spoke.Name = name;
+        if (config is not null) spoke.Config = config;
+        spoke.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _spokeRepository.UpdateAsync(spoke, cancellationToken);
+        _logger.LogInformation("Spoke {SpokeId} config updated", spokeId);
+    }
 
     public Task DeleteSpokeAsync(Guid spokeId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
