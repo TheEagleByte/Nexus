@@ -13,6 +13,9 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
 
     public async Task<Spoke> RegisterSpokeAsync(string name, JsonDocument capabilities, JsonDocument config, JsonDocument? profile = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        ArgumentNullException.ThrowIfNull(config);
+
         var now = DateTimeOffset.UtcNow;
         var spoke = new Spoke
         {

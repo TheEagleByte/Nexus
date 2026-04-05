@@ -72,7 +72,7 @@ public class SpokesControllerTests
 
         var result = await _controller.RegisterAsync(request, CancellationToken.None);
 
-        var createdResult = Assert.IsType<CreatedAtActionResult>(result);
+        var createdResult = Assert.IsType<CreatedResult>(result);
         Assert.Equal(201, createdResult.StatusCode);
 
         var response = Assert.IsType<SpokeDetailResponse>(createdResult.Value);
@@ -111,7 +111,10 @@ public class SpokesControllerTests
 
         var result = await _controller.RegisterAsync(request, CancellationToken.None);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        var unauthorizedResult = Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.Equal(401, unauthorizedResult.StatusCode);
+        var errorResponse = Assert.IsType<ErrorResponse>(unauthorizedResult.Value);
+        Assert.Equal("UNAUTHORIZED", errorResponse.Error.Code);
     }
 
     [Fact]
@@ -150,7 +153,7 @@ public class SpokesControllerTests
 
         var result = await _controller.RegisterAsync(request, CancellationToken.None);
 
-        Assert.IsType<CreatedAtActionResult>(result);
+        Assert.IsType<CreatedResult>(result);
         _spokeServiceMock.Verify(s => s.RegisterSpokeAsync(
             "test-spoke",
             It.IsAny<JsonDocument>(),

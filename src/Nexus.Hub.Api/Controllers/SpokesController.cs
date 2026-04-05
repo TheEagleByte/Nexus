@@ -15,6 +15,18 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
     [HttpPost("register")]
     public async Task<IActionResult> RegisterAsync([FromBody] SpokeRegistrationRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Spoke name is required",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
         var expectedPsk = _configuration["Spoke:PreSharedKey"];
         if (string.IsNullOrEmpty(expectedPsk) || request.Psk != expectedPsk)
             return Unauthorized(new ErrorResponse
@@ -57,6 +69,6 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
             RegisteredAt = spoke.CreatedAt
         };
 
-        return CreatedAtAction(nameof(RegisterAsync), new { id = spoke.Id }, response);
+        return Created($"/api/spokes/{spoke.Id}", response);
     }
 }
