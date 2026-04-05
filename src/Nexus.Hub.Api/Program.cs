@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Nexus.Hub.Api.Hubs;
 using Nexus.Hub.Api.Middleware;
 using Nexus.Hub.Infrastructure;
 using Nexus.Hub.Infrastructure.Data;
@@ -63,7 +64,7 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
-    // app.MapHub<NexusHub>("/api/hub"); // Uncomment when NexusHub is implemented
+    app.MapHub<NexusHub>("/hubs/nexus");
 
     app.Run();
 }

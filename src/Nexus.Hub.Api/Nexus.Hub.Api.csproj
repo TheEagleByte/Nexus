@@ -20,4 +20,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexus.Hub.Api.Tests" />
+  </ItemGroup>
+
 </Project>
