@@ -24,5 +24,16 @@ jobs:
       - name: Build
         run: dotnet build src/Nexus.Hub.sln --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test src/Nexus.Hub.sln --no-build --configuration Release --verbosity normal
+      - name: Test with coverage
+        run: >
+          dotnet test src/Nexus.Hub.sln
+          --no-build
+          --configuration Release
+          --verbosity normal
+          /p:CollectCoverage=true
+          /p:CoverletOutputFormat=cobertura
+          /p:CoverletOutput=./coverage/
+          /p:ThresholdType=line
+          /p:Threshold=80
+          /p:ExcludeByFile="**/Migrations/**%2c**/Program.cs%2c**/HubModels.cs"
+          /p:Exclude="[*]Nexus.Hub.Infrastructure.Data.*%2c[*]Nexus.Hub.Infrastructure.Repositories.*%2c[*]Nexus.Hub.Api.Models.*%2c[*]Nexus.Hub.Domain.Entities.*"
