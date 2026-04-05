@@ -35,6 +35,9 @@ public class NexusHubMessageTests : IDisposable
         _hubClientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_groupClientMock.Object);
         _hubClientsMock.Setup(c => c.All).Returns(_dispatchAllClientMock.Object);
         _hubContextMock.Setup(c => c.Clients).Returns(_hubClientsMock.Object);
+        _jobServiceMock
+            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Job>());
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
         hubType.GetProperty("Groups")!.SetValue(_hub, _groupsMock.Object);
