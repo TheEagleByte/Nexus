@@ -22,9 +22,18 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         var httpContext = Context.GetHttpContext();
         var spokeIdRaw = httpContext?.Request.Query["spokeId"].FirstOrDefault();
 
+        if (string.IsNullOrWhiteSpace(spokeIdRaw))
+        {
+            // Dashboard/viewer connection — no spokeId required
+            await Groups.AddToGroupAsync(Context.ConnectionId, "dashboard");
+            _logger.LogInformation("Dashboard client connected (connection {ConnectionId})", Context.ConnectionId);
+            await base.OnConnectedAsync();
+            return;
+        }
+
         if (!Guid.TryParse(spokeIdRaw, out var spokeId))
         {
-            _logger.LogWarning("Connection {ConnectionId} rejected: missing or invalid spokeId", Context.ConnectionId);
+            _logger.LogWarning("Connection {ConnectionId} rejected: malformed spokeId '{SpokeIdRaw}'", Context.ConnectionId, spokeIdRaw);
             Context.Abort();
             return;
         }
@@ -36,6 +45,13 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         try
         {
             await _spokeService.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online);
+            _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
+            await ReplayQueuedJobsAsync(spokeId);
+        }
+        catch (NotFoundException)
+        {
+            // Spoke not yet registered in DB — allow connection so it can call RegisterSpoke
+            _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId}) — pending registration", spokeId, Context.ConnectionId);
         }
         catch (Exception ex)
         {
@@ -45,10 +61,6 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             Context.Abort();
             return;
         }
-
-        _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
-
-        await ReplayQueuedJobsAsync(spokeId);
 
         await base.OnConnectedAsync();
     }
@@ -72,7 +84,17 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         }
         else
         {
-            _logger.LogWarning("Connection {ConnectionId} disconnected but was not in spoke map", Context.ConnectionId);
+            var rawSpokeId = Context.GetHttpContext()?.Request.Query["spokeId"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(rawSpokeId))
+            {
+                // Dashboard/viewer client disconnected
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, "dashboard");
+                _logger.LogInformation("Dashboard client disconnected (connection {ConnectionId})", Context.ConnectionId);
+            }
+            else
+            {
+                _logger.LogWarning("Unmapped disconnect for connection {ConnectionId} with spokeId '{SpokeIdRaw}'", Context.ConnectionId, rawSpokeId);
+            }
         }
 
         if (exception is not null)
