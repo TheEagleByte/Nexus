@@ -260,19 +260,22 @@ public class RepositoryIntegrationTests : IDisposable
         var spoke1 = CreateSpoke();
         var spoke2 = CreateSpoke();
         ctx.Spokes.AddRange(spoke1, spoke2);
-        var project = CreateProject(spoke1.Id);
-        ctx.Projects.Add(project);
+        var project1 = CreateProject(spoke1.Id);
+        var project2 = CreateProject(spoke2.Id);
+        ctx.Projects.AddRange(project1, project2);
         await ctx.SaveChangesAsync();
 
         var repo = new JobRepository(ctx);
-        await repo.AddAsync(CreateJob(project.Id, spoke1.Id));
-        await repo.AddAsync(CreateJob(project.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project1.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project1.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project2.Id, spoke2.Id));
 
         using var ctx2 = _factory.CreateContext();
         var repo2 = new JobRepository(ctx2);
         var jobs = await repo2.ListBySpokeAsync(spoke1.Id);
 
         Assert.Equal(2, jobs.Count);
+        Assert.All(jobs, j => Assert.Equal(spoke1.Id, j.SpokeId));
     }
 
     [Fact]
@@ -333,20 +336,23 @@ public class RepositoryIntegrationTests : IDisposable
     public async Task JobRepository_CountAsync_ReturnsCorrectCount()
     {
         using var ctx = _factory.CreateContext();
-        var spoke = CreateSpoke();
-        ctx.Spokes.Add(spoke);
-        var project = CreateProject(spoke.Id);
-        ctx.Projects.Add(project);
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        var project1 = CreateProject(spoke1.Id);
+        var project2 = CreateProject(spoke2.Id);
+        ctx.Projects.AddRange(project1, project2);
         await ctx.SaveChangesAsync();
 
         var repo = new JobRepository(ctx);
-        await repo.AddAsync(CreateJob(project.Id, spoke.Id));
-        await repo.AddAsync(CreateJob(project.Id, spoke.Id));
-        await repo.AddAsync(CreateJob(project.Id, spoke.Id));
+        await repo.AddAsync(CreateJob(project1.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project1.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project1.Id, spoke1.Id));
+        await repo.AddAsync(CreateJob(project2.Id, spoke2.Id));
 
         using var ctx2 = _factory.CreateContext();
         var repo2 = new JobRepository(ctx2);
-        var count = await repo2.CountAsync(spokeId: spoke.Id);
+        var count = await repo2.CountAsync(spokeId: spoke1.Id);
 
         Assert.Equal(3, count);
     }

@@ -212,10 +212,24 @@ public class NexusHubReconnectionTests : IDisposable
 
         await _hub.RegisterSpoke(registration);
 
+        object? capturedPayload = null;
         _callerMock.Verify(c => c.SendCoreAsync(
             "SpokeRegistered",
             It.Is<object?[]>(args => args.Length == 1),
             It.IsAny<CancellationToken>()), Times.Once);
+
+        _callerMock.Invocations
+            .Where(i => i.Method.Name == "SendCoreAsync" && (string)i.Arguments[0] == "SpokeRegistered")
+            .ToList()
+            .ForEach(i => capturedPayload = ((object?[])i.Arguments[1])[0]);
+
+        Assert.NotNull(capturedPayload);
+        var payloadType = capturedPayload!.GetType();
+        Assert.NotNull(payloadType.GetProperty("ReconnectionPolicy"));
+        var infoValue = payloadType.GetProperty("Info")?.GetValue(capturedPayload);
+        Assert.NotNull(infoValue);
+        var spokeInfo = Assert.IsType<SpokeInfo>(infoValue);
+        Assert.Equal(spokeId, spokeInfo.SpokeId);
     }
 
     private class HttpContextFeature : IHttpContextFeature
