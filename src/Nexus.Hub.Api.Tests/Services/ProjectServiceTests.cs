@@ -39,9 +39,9 @@ public class ProjectServiceTests
     }
 
     [Fact]
-    public async Task UpdateProjectStatusAsync_ThrowsNotImplementedException()
+    public async Task UpdateProjectStatusAsync_NonExistentProject_ThrowsNotFoundException()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
             () => _sut.UpdateProjectStatusAsync(Guid.NewGuid(), ProjectStatus.Active));
     }
 

@@ -92,10 +92,18 @@ public class JobServiceTests
     }
 
     [Fact]
-    public async Task RecordJobOutputAsync_ThrowsNotImplementedException()
+    public async Task RecordJobOutputAsync_DelegatesToRepository()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => _sut.RecordJobOutputAsync(Guid.NewGuid(), "output"));
+        var jobId = Guid.NewGuid();
+        var outputStream = new OutputStream { Id = Guid.NewGuid(), JobId = jobId, Sequence = 0, Content = "output", Timestamp = DateTimeOffset.UtcNow };
+        _outputRepo
+            .Setup(r => r.AddWithAutoSequenceAsync(jobId, "output", "stdout", default))
+            .ReturnsAsync(outputStream);
+
+        var result = await _sut.RecordJobOutputAsync(jobId, "output");
+
+        Assert.Equal(outputStream.Id, result.Id);
+        _outputRepo.Verify(r => r.AddWithAutoSequenceAsync(jobId, "output", "stdout", default), Times.Once);
     }
 
     [Fact]

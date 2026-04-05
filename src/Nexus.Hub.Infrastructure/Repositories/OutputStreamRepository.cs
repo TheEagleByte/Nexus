@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Repositories;
 using Nexus.Hub.Infrastructure.Data;
@@ -11,12 +12,46 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
     public Task<List<OutputStream>> ListByJobAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task<OutputStream> AddAsync(OutputStream outputStream, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<OutputStream> AddAsync(OutputStream outputStream, CancellationToken cancellationToken = default)
+    {
+        _context.OutputStreams.Add(outputStream);
+        await _context.SaveChangesAsync(cancellationToken);
+        return outputStream;
+    }
 
     public Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task<long> GetNextSequenceAsync(Guid jobId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<long> GetNextSequenceAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        var max = await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .MaxAsync(o => (long?)o.Sequence, cancellationToken);
+        return (max ?? -1) + 1;
+    }
+
+    public async Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        var max = await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .MaxAsync(o => (long?)o.Sequence, cancellationToken);
+
+        var outputStream = new OutputStream
+        {
+            Id = Guid.NewGuid(),
+            JobId = jobId,
+            Sequence = (max ?? -1) + 1,
+            Content = content,
+            StreamType = streamType,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        _context.OutputStreams.Add(outputStream);
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return outputStream;
+    }
 }

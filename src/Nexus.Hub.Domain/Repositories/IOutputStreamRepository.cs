@@ -8,4 +8,5 @@ public interface IOutputStreamRepository
     Task<OutputStream> AddAsync(OutputStream outputStream, CancellationToken cancellationToken = default);
     Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default);
     Task<long> GetNextSequenceAsync(Guid jobId, CancellationToken cancellationToken = default);
+    Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default);
 }

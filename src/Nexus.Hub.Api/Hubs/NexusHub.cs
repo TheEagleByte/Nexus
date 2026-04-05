@@ -7,12 +7,13 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
 
-public class NexusHub(ISpokeService spokeService, IJobService jobService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
+public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
 {
     private static readonly ConcurrentDictionary<string, Guid> ConnectionToSpokeMap = new();
 
     private readonly ISpokeService _spokeService = spokeService;
     private readonly IJobService _jobService = jobService;
+    private readonly IProjectService _projectService = projectService;
     private readonly ILogger<NexusHub> _logger = logger;
 
     public override async Task OnConnectedAsync()
@@ -170,6 +171,80 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, ILogge
             spokeId, correlationId);
 
         await Clients.Caller.SendAsync("HeartbeatAcknowledged", spokeId, DateTimeOffset.UtcNow);
+    }
+
+    public async Task ReportJobStatusChanged(JobStatusChangedEvent evt)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("ReportJobStatusChanged from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established.");
+        }
+
+        if (evt.SpokeId != spokeId)
+        {
+            _logger.LogWarning("ReportJobStatusChanged spokeId mismatch: mapped {MappedSpokeId}, event claims {EventSpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, evt.SpokeId, correlationId);
+            throw new HubException("SpokeId mismatch.");
+        }
+
+        await _jobService.UpdateJobStatusAsync(evt.JobId, evt.NewStatus, evt.Summary);
+
+        await Clients.All.SendAsync("JobStatusChanged", evt);
+
+        _logger.LogInformation(
+            "Job {JobId} status changed: {PreviousStatus} → {NewStatus} (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
+            evt.JobId, evt.PreviousStatus, evt.NewStatus, spokeId, correlationId);
+    }
+
+    public async Task StreamJobOutput(JobOutputChunk chunk)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("StreamJobOutput from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established.");
+        }
+
+        if (chunk.SpokeId != spokeId)
+        {
+            _logger.LogWarning("StreamJobOutput spokeId mismatch: mapped {MappedSpokeId}, chunk claims {ChunkSpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, chunk.SpokeId, correlationId);
+            throw new HubException("SpokeId mismatch.");
+        }
+
+        var persisted = await _jobService.RecordJobOutputAsync(chunk.JobId, chunk.Content, chunk.StreamType);
+
+        var broadcastChunk = new JobOutputChunk(chunk.JobId, chunk.SpokeId, persisted.Sequence, persisted.Content, persisted.StreamType, persisted.Timestamp);
+        await Clients.All.SendAsync("JobOutputReceived", broadcastChunk);
+
+        _logger.LogDebug("Job {JobId} output chunk {Sequence} received (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
+            chunk.JobId, chunk.Sequence, spokeId, correlationId);
+    }
+
+    public async Task ReportProjectStatusChanged(Guid projectId, ProjectStatus newStatus)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("ReportProjectStatusChanged from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established.");
+        }
+
+        await _projectService.UpdateProjectStatusAsync(projectId, newStatus);
+
+        await Clients.All.SendAsync("ProjectUpdated", new { ProjectId = projectId, Status = newStatus, Timestamp = DateTimeOffset.UtcNow });
+
+        _logger.LogInformation(
+            "Project {ProjectId} status changed to {NewStatus} (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
+            projectId, newStatus, spokeId, correlationId);
     }
 
     public static async Task DispatchJobAssignment(
