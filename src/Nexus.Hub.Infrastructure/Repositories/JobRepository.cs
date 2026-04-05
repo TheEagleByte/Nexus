@@ -9,8 +9,8 @@ public class JobRepository(NexusDbContext context) : IJobRepository
 {
     private readonly NexusDbContext _context = context;
 
-    public Task<Job?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Job?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => await _context.Jobs.FindAsync([id], cancellationToken);
 
     public Task<List<Job>> ListByProjectAsync(Guid projectId, JobStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
@@ -28,8 +28,11 @@ public class JobRepository(NexusDbContext context) : IJobRepository
         return job;
     }
 
-    public Task UpdateAsync(Job job, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task UpdateAsync(Job job, CancellationToken cancellationToken = default)
+    {
+        _context.Jobs.Update(job);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 
     public Task<int> CountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();

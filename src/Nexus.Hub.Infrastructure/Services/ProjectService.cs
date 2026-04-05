@@ -19,8 +19,17 @@ public class ProjectService(IProjectRepository projectRepository, ILogger<Projec
     public Task<List<Project>> ListProjectsAsync(Guid? spokeId = null, ProjectStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task UpdateProjectStatusAsync(Guid projectId, ProjectStatus status, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task UpdateProjectStatusAsync(Guid projectId, ProjectStatus status, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Project {projectId} not found");
+
+        project.Status = status;
+        project.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _projectRepository.UpdateAsync(project, cancellationToken);
+        _logger.LogInformation("Project {ProjectId} status updated to {Status}", projectId, status);
+    }
 
     public Task<int> GetProjectCountAsync(Guid? spokeId = null, ProjectStatus? status = null, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();

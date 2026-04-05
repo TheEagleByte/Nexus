@@ -72,3 +72,23 @@ public record JobAssignment(
 public record JobParameters(
     Dictionary<string, object>? CustomFields
 );
+
+public record JobStatusChangedEvent(
+    Guid JobId,
+    Guid ProjectId,
+    Guid SpokeId,
+    JobStatus NewStatus,
+    JobStatus PreviousStatus,
+    string? Summary,
+    Dictionary<string, object>? Metadata,
+    DateTimeOffset Timestamp
+);
+
+public record JobOutputChunk(
+    Guid JobId,
+    Guid SpokeId,
+    long Sequence,
+    string Content,
+    string StreamType,
+    DateTimeOffset Timestamp
+);

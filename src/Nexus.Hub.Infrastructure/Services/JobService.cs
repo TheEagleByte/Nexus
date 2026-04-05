@@ -45,8 +45,36 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
     public Task CancelJobAsync(Guid jobId, string? reason = null, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task UpdateJobStatusAsync(Guid jobId, JobStatus status, string? summary = null, CancellationToken cancellationToken = default)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Job {jobId} not found");
+
+        var now = DateTimeOffset.UtcNow;
+        job.Status = status;
+
+        if (summary is not null) job.Summary = summary;
+        if (status == JobStatus.Running && job.StartedAt is null) job.StartedAt = now;
+        if (status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled) job.CompletedAt = now;
+
+        await _jobRepository.UpdateAsync(job, cancellationToken);
+        _logger.LogInformation("Job {JobId} status updated to {Status}", jobId, status);
+    }
+
+    public async Task RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
+    {
+        var sequence = await _outputStreamRepository.GetNextSequenceAsync(jobId, cancellationToken);
+        var outputStream = new OutputStream
+        {
+            Id = Guid.NewGuid(),
+            JobId = jobId,
+            Sequence = sequence,
+            Content = content,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        await _outputStreamRepository.AddAsync(outputStream, cancellationToken);
+    }
 
     public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
