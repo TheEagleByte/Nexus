@@ -90,6 +90,32 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
         [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
     {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        if (limit < 1)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Limit must be at least 1",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        limit = Math.Min(limit, 100);
+
         var spokes = await _spokeService.ListSpokesAsync(status, limit, offset, cancellationToken);
         var total = await _spokeService.GetSpokeCountAsync(status, cancellationToken);
 

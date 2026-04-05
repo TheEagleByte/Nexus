@@ -264,6 +264,46 @@ public class SpokesControllerTests
         Assert.Equal(5, response.Offset);
 
         _spokeServiceMock.Verify(s => s.ListSpokesAsync(SpokeStatus.Online, 10, 5, It.IsAny<CancellationToken>()), Times.Once);
+        _spokeServiceMock.Verify(s => s.GetSpokeCountAsync(SpokeStatus.Online, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ListAsync_NegativeOffset_Returns400()
+    {
+        var result = await _controller.ListAsync(null, 50, -1, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task ListAsync_ZeroLimit_Returns400()
+    {
+        var result = await _controller.ListAsync(null, 0, 0, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task ListAsync_LimitCappedAt100()
+    {
+        _spokeServiceMock
+            .Setup(s => s.ListSpokesAsync(null, 100, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeCountAsync(null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        var result = await _controller.ListAsync(null, 500, 0, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<SpokeListResponse>(okResult.Value);
+        Assert.Equal(100, response.Limit);
+
+        _spokeServiceMock.Verify(s => s.ListSpokesAsync(null, 100, 0, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
