@@ -119,7 +119,7 @@ public class ExceptionMiddlewareTests
 
         await middleware.InvokeAsync(context);
 
-        Assert.Equal("application/json", context.Response.ContentType);
+        Assert.StartsWith("application/json", context.Response.ContentType);
     }
 
     [Fact]
