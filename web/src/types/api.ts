@@ -1,0 +1,103 @@
+export type SpokeStatus = "online" | "offline" | "busy";
+
+export type ProjectStatus =
+  | "planning"
+  | "active"
+  | "paused"
+  | "completed"
+  | "failed"
+  | "archived";
+
+export type JobStatus =
+  | "queued"
+  | "awaiting_approval"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type JobType =
+  | "implement"
+  | "test"
+  | "refactor"
+  | "investigate"
+  | "custom";
+
+export interface SpokeResponse {
+  id: string;
+  name: string;
+  status: SpokeStatus;
+  lastSeen: string;
+  activeJobCount: number;
+  capabilities: string[];
+  config: Record<string, unknown>;
+}
+
+export interface SpokeListResponse {
+  spokes: SpokeResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SpokeDetailResponse extends SpokeResponse {
+  registeredAt: string;
+  totalJobsCompleted: number;
+  profile: SpokeProfile | null;
+  resourceUsage: ResourceUsage | null;
+}
+
+export interface SpokeProfile {
+  displayName: string;
+  machineDescription: string;
+  repos: { name: string; remoteUrl: string }[];
+  jiraConfig: { instanceUrl: string; projectKeys: string[] } | null;
+  integrations: string[];
+  description: string;
+}
+
+export interface ResourceUsage {
+  memoryUsageMb: number;
+  cpuUsagePercent: number;
+  diskUsageMb: number;
+}
+
+export interface ProjectResponse {
+  id: string;
+  spokeId: string;
+  spokeName: string;
+  externalKey: string | null;
+  name: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+  activeJobCount: number;
+  totalJobCount: number;
+  summary: string | null;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface JobResponse {
+  id: string;
+  projectId: string;
+  spokeId: string;
+  type: JobType;
+  status: JobStatus;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  summary: string | null;
+}
+
+export interface JobListResponse {
+  jobs: JobResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
