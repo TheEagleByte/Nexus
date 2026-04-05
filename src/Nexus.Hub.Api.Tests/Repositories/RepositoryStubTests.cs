@@ -50,6 +50,27 @@ public class RepositoryStubTests
     }
 
     [Fact]
+    public void JobRepository_AddAsync_IsImplemented()
+    {
+        // AddAsync is implemented (not a stub) — verified by checking it doesn't throw NotImplementedException.
+        // Full integration test requires a real database provider (InMemory doesn't support JsonDocument columns).
+        using var ctx = CreateContext();
+        var repo = new JobRepository(ctx);
+        var job = new Job
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = Guid.NewGuid(),
+            SpokeId = Guid.NewGuid(),
+            Type = JobType.Implement,
+            Status = JobStatus.Queued,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        var ex = Record.ExceptionAsync(() => repo.AddAsync(job)).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
+    }
+
+    [Fact]
     public async Task JobRepository_UpdateAsync_ThrowsNotImplementedException()
     {
         using var ctx = CreateContext();
