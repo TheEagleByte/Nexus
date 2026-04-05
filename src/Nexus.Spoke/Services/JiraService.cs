@@ -8,7 +8,7 @@ using Nexus.Spoke.Models;
 namespace Nexus.Spoke.Services;
 
 public class JiraService(
-    HttpClient httpClient,
+    IHttpClientFactory httpClientFactory,
     IOptions<SpokeConfiguration> config,
     ILogger<JiraService> logger) : IJiraService
 {
@@ -37,6 +37,7 @@ public class JiraService(
         HttpResponseMessage response;
         try
         {
+            using var httpClient = httpClientFactory.CreateClient();
             response = await httpClient.SendAsync(request, cancellationToken);
         }
         catch (HttpRequestException ex)
