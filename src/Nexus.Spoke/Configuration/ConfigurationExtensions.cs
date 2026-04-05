@@ -33,9 +33,15 @@ public static class ConfigurationExtensions
         var defaultBase = GetDefaultBasePath();
 
         config.AddYamlFile("config.yaml", optional: true, reloadOnChange: false);
-        config.AddYamlFile(
-            Path.Combine(defaultBase, "config.yaml"),
-            optional: true, reloadOnChange: false);
+
+        // AddYamlFile with optional:true still throws DirectoryNotFoundException
+        // if the parent directory doesn't exist, so guard against that.
+        var defaultConfigPath = Path.Combine(defaultBase, "config.yaml");
+        if (Directory.Exists(defaultBase))
+        {
+            config.AddYamlFile(defaultConfigPath, optional: true, reloadOnChange: false);
+        }
+
         config.AddEnvironmentVariables("NEXUS_");
 
         return config;

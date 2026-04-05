@@ -14,7 +14,7 @@ public class HeartbeatWorker(
     internal static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(10);
     internal const int MaxMissedBeforeError = 3;
 
-    private int _consecutiveMissed;
+    private volatile int _consecutiveMissed;
     private volatile bool _ackReceived;
     private bool _ackHandlerRegistered;
 

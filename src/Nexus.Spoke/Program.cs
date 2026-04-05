@@ -30,7 +30,6 @@ try
 
     // NEX-130: Hub connection
     builder.Services.AddSingleton<IHubConnectionService, HubConnectionService>();
-    builder.Services.AddHostedService<HubConnectionWorker>();
 
     // NEX-138: Command queue and handler dispatch
     builder.Services.AddSingleton<CommandQueue>();
@@ -42,12 +41,15 @@ try
     });
     builder.Services.AddHostedService<CommandQueueWorker>();
 
-    // Wire SignalR events → command queue
+    // Wire SignalR events → command queue (must register handlers BEFORE connection starts)
     builder.Services.AddHostedService<SignalRCommandBridge>();
 
-    // NEX-134: Heartbeat
+    // NEX-134: Heartbeat (registers ack handler before connection)
     builder.Services.AddSingleton<ResourceMonitor>();
     builder.Services.AddHostedService<HeartbeatWorker>();
+
+    // Hub connection worker starts AFTER all handlers are registered
+    builder.Services.AddHostedService<HubConnectionWorker>();
 
     var host = builder.Build();
     await host.RunAsync();

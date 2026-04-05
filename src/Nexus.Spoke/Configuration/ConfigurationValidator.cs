@@ -15,6 +15,8 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
             failures.Add("Spoke:Name is required");
         if (string.IsNullOrWhiteSpace(options.Hub.Url))
             failures.Add("Hub:Url is required");
+        else if (!Uri.TryCreate(options.Hub.Url, UriKind.Absolute, out _))
+            failures.Add("Hub:Url must be a valid absolute URI");
         if (string.IsNullOrWhiteSpace(options.Hub.Token))
             failures.Add("Hub:Token is required");
 

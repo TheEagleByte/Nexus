@@ -69,6 +69,16 @@ public class ConfigurationValidatorTests
     }
 
     [Fact]
+    public void Validate_InvalidHubUrl_Fails()
+    {
+        var config = CreateValid();
+        config.Hub.Url = "not-a-valid-url";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Hub:Url must be a valid absolute URI", result.FailureMessage);
+    }
+
+    [Fact]
     public void Validate_MultipleFieldsMissing_ReportsAll()
     {
         var config = new SpokeConfiguration();

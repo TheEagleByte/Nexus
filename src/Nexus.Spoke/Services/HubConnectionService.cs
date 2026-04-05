@@ -36,6 +36,15 @@ public class HubConnectionService(
         foreach (var register in _handlerRegistrations)
             register(_connection);
 
+        // Register the SpokeRegistered callback once (not per-reconnect)
+        _connection.On<SpokeRegisteredResponse>("SpokeRegistered", response =>
+        {
+            _spokeInfo = response.Info;
+            logger.LogInformation("Registered with hub as {SpokeName} (id: {SpokeId})",
+                response.Info.Name, response.Info.SpokeId);
+            return Task.CompletedTask;
+        });
+
         _connection.Reconnecting += error =>
         {
             logger.LogWarning(error, "Reconnecting to hub...");
@@ -45,7 +54,17 @@ public class HubConnectionService(
         _connection.Reconnected += connectionId =>
         {
             logger.LogInformation("Reconnected to hub (connection {ConnectionId})", connectionId);
-            _ = RegisterSpokeAsync(cfg, CancellationToken.None);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await RegisterSpokeAsync(cfg, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to re-register spoke after reconnection");
+                }
+            });
             return Task.CompletedTask;
         };
 
@@ -115,15 +134,6 @@ public class HubConnectionService(
 
         if (_connection is null) return;
 
-        // Register to receive the SpokeRegistered callback
-        _connection.On<SpokeRegisteredResponse>("SpokeRegistered", response =>
-        {
-            _spokeInfo = response.Info;
-            logger.LogInformation("Registered with hub as {SpokeName} (id: {SpokeId})",
-                response.Info.Name, response.Info.SpokeId);
-            return Task.CompletedTask;
-        });
-
         await _connection.InvokeAsync("RegisterSpoke", registration, cancellationToken);
         logger.LogDebug("Registration message sent to hub");
     }
@@ -145,9 +155,9 @@ public class HubConnectionService(
 
         public TimeSpan? NextRetryDelay(RetryContext retryContext)
         {
-            var delay = (int)(InitialDelayMs * Math.Pow(Multiplier, retryContext.PreviousRetryCount));
+            var delay = InitialDelayMs * Math.Pow(Multiplier, retryContext.PreviousRetryCount);
             delay = Math.Min(delay, MaxDelayMs);
-            return TimeSpan.FromMilliseconds(delay);
+            return TimeSpan.FromMilliseconds((int)delay);
         }
     }
 }

@@ -49,6 +49,24 @@ public class WorkspaceInitializerTests : IDisposable
     }
 
     [Fact]
+    public void ResolveBasePath_WithTilde_ExpandsToUserProfile()
+    {
+        var config = new SpokeConfiguration
+        {
+            Workspace = new SpokeConfiguration.WorkspaceConfig
+            {
+                BaseDirectory = "~/my-nexus"
+            }
+        };
+
+        var result = WorkspaceInitializer.ResolveBasePath(config);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.StartsWith(home, result);
+        Assert.EndsWith("my-nexus", result);
+        Assert.DoesNotContain("~", result);
+    }
+
+    [Fact]
     public async Task StartAsync_CreatesAllDirectories()
     {
         var config = new SpokeConfiguration

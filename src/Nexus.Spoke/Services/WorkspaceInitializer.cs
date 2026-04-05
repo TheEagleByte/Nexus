@@ -30,7 +30,18 @@ public class WorkspaceInitializer(
     internal static string ResolveBasePath(SpokeConfiguration config)
     {
         if (!string.IsNullOrWhiteSpace(config.Workspace.BaseDirectory))
-            return Environment.ExpandEnvironmentVariables(config.Workspace.BaseDirectory);
+        {
+            var path = config.Workspace.BaseDirectory;
+
+            // ExpandEnvironmentVariables doesn't handle Unix tilde expansion
+            if (path.StartsWith("~/") || path == "~")
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                path = Path.Combine(home, path.Length > 2 ? path[2..] : string.Empty);
+            }
+
+            return Environment.ExpandEnvironmentVariables(path);
+        }
 
         return Nexus.Spoke.Configuration.ConfigurationExtensions.GetDefaultBasePath();
     }
