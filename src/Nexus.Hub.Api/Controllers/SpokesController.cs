@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Nexus.Hub.Api.Hubs;
 using Nexus.Hub.Api.Models;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Services;
@@ -10,10 +12,18 @@ namespace Nexus.Hub.Api.Controllers;
 
 [ApiController]
 [Route("api/spokes")]
-public class SpokesController(ISpokeService spokeService, IConfiguration configuration) : ControllerBase
+public class SpokesController(
+    ISpokeService spokeService,
+    IMessageService messageService,
+    IHubContext<NexusHub> hubContext,
+    IConfiguration configuration,
+    ILogger<SpokesController> logger) : ControllerBase
 {
     private readonly ISpokeService _spokeService = spokeService;
+    private readonly IMessageService _messageService = messageService;
+    private readonly IHubContext<NexusHub> _hubContext = hubContext;
     private readonly IConfiguration _configuration = configuration;
+    private readonly ILogger<SpokesController> _logger = logger;
 
     [HttpPost("register")]
     public async Task<IActionResult> RegisterAsync([FromBody] SpokeRegistrationRequest request, CancellationToken cancellationToken)
@@ -156,5 +166,105 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
         };
 
         return Ok(response);
+    }
+
+    [HttpGet("{id:guid}/conversation")]
+    public async Task<IActionResult> GetConversationAsync(
+        Guid id,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        if (limit < 1)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Limit must be at least 1",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        limit = Math.Min(limit, 100);
+
+        // Verify spoke exists
+        await _spokeService.GetSpokeAsync(id, cancellationToken);
+
+        var messages = await _messageService.GetConversationAsync(id, limit, offset, cancellationToken);
+        var total = await _messageService.GetMessageCountAsync(id, cancellationToken);
+
+        var response = new ConversationResponse
+        {
+            Messages = messages.Select(m => new MessageResponse
+            {
+                Id = m.Id,
+                SpokeId = m.SpokeId,
+                Direction = m.Direction,
+                Content = m.Content,
+                JobId = m.JobId,
+                Timestamp = m.Timestamp
+            }).ToList(),
+            Total = total,
+            Limit = limit,
+            Offset = offset
+        };
+
+        return Ok(response);
+    }
+
+    [HttpPost("{id:guid}/conversation")]
+    public async Task<IActionResult> SendMessageAsync(
+        Guid id,
+        [FromBody] SendMessageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Content))
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Message content is required",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        // Verify spoke exists
+        await _spokeService.GetSpokeAsync(id, cancellationToken);
+
+        try
+        {
+            await NexusHub.DispatchMessageToSpoke(_hubContext, _messageService, _logger, id, request.Content, request.JobId);
+        }
+        catch (InvalidOperationException)
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "SPOKE_NOT_CONNECTED",
+                    Message = $"Spoke {id} is not currently connected",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+        }
+
+        return Accepted();
     }
 }

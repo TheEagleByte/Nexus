@@ -7,13 +7,14 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
 
-public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
+public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, IMessageService messageService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
 {
     private static readonly ConcurrentDictionary<string, Guid> ConnectionToSpokeMap = new();
 
     private readonly ISpokeService _spokeService = spokeService;
     private readonly IJobService _jobService = jobService;
     private readonly IProjectService _projectService = projectService;
+    private readonly IMessageService _messageService = messageService;
     private readonly ILogger<NexusHub> _logger = logger;
 
     public override async Task OnConnectedAsync()
@@ -245,6 +246,78 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         _logger.LogInformation(
             "Project {ProjectId} status changed to {NewStatus} (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
             projectId, newStatus, spokeId, correlationId);
+    }
+
+    public async Task MessageFromSpoke(SpokeMessage message)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("MessageFromSpoke from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established. Connect with a valid spokeId first.");
+        }
+
+        var recorded = await _messageService.RecordMessageAsync(spokeId, MessageDirection.SpokeToUser, message.Content, message.JobId);
+
+        await Clients.All.SendAsync("MessageReceived", new
+        {
+            recorded.Id,
+            recorded.SpokeId,
+            Direction = recorded.Direction.ToString(),
+            recorded.Content,
+            recorded.JobId,
+            recorded.Timestamp
+        });
+
+        _logger.LogInformation(
+            "Message {MessageId} received from spoke {SpokeId} (CorrelationId: {CorrelationId})",
+            recorded.Id, spokeId, correlationId);
+    }
+
+    public static async Task DispatchMessageToSpoke(
+        IHubContext<NexusHub> hubContext,
+        IMessageService messageService,
+        ILogger logger,
+        Guid spokeId, string content, Guid? jobId = null)
+    {
+        var correlationId = Guid.NewGuid();
+
+        var isConnected = ConnectionToSpokeMap.Values.Contains(spokeId);
+        if (!isConnected)
+        {
+            logger.LogWarning(
+                "Message dispatch failed: spoke {SpokeId} is not connected (CorrelationId: {CorrelationId})",
+                spokeId, correlationId);
+            throw new InvalidOperationException($"Spoke {spokeId} is not connected.");
+        }
+
+        var recorded = await messageService.RecordMessageAsync(spokeId, MessageDirection.UserToSpoke, content, jobId);
+
+        await hubContext.Clients.Group($"spoke-{spokeId}").SendAsync("ReceiveMessage", new
+        {
+            recorded.Id,
+            recorded.SpokeId,
+            Direction = recorded.Direction.ToString(),
+            recorded.Content,
+            recorded.JobId,
+            recorded.Timestamp
+        });
+
+        await hubContext.Clients.All.SendAsync("MessageReceived", new
+        {
+            recorded.Id,
+            recorded.SpokeId,
+            Direction = recorded.Direction.ToString(),
+            recorded.Content,
+            recorded.JobId,
+            recorded.Timestamp
+        });
+
+        logger.LogInformation(
+            "Message {MessageId} dispatched to spoke {SpokeId} (CorrelationId: {CorrelationId})",
+            recorded.Id, spokeId, correlationId);
     }
 
     public static async Task DispatchJobAssignment(

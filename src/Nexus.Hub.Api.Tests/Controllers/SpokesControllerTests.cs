@@ -1,9 +1,12 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Nexus.Hub.Api.Controllers;
+using Nexus.Hub.Api.Hubs;
 using Nexus.Hub.Api.Models;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Services;
@@ -13,6 +16,9 @@ namespace Nexus.Hub.Api.Tests.Controllers;
 public class SpokesControllerTests
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();
+    private readonly Mock<IMessageService> _messageServiceMock = new();
+    private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
+    private readonly Mock<ILogger<SpokesController>> _loggerMock = new();
     private readonly SpokesController _controller;
     private const string ValidPsk = "test-psk";
 
@@ -25,7 +31,7 @@ public class SpokesControllerTests
             })
             .Build();
 
-        _controller = new SpokesController(_spokeServiceMock.Object, config)
+        _controller = new SpokesController(_spokeServiceMock.Object, _messageServiceMock.Object, _hubContextMock.Object, config, _loggerMock.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -352,5 +358,153 @@ public class SpokesControllerTests
 
         await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
             () => _controller.GetAsync(spokeId, CancellationToken.None));
+    }
+
+    // ==========================================================================
+    // Conversation endpoints
+    // ==========================================================================
+
+    private void SetupSpokeExists(Guid spokeId)
+    {
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Spoke
+            {
+                Id = spokeId,
+                Name = "test-spoke",
+                Status = SpokeStatus.Online,
+                Capabilities = JsonSerializer.SerializeToDocument(Array.Empty<string>()),
+                Config = JsonSerializer.SerializeToDocument(new { }),
+                LastSeen = DateTimeOffset.UtcNow,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+    }
+
+    [Fact]
+    public async Task GetConversationAsync_ReturnsMessages()
+    {
+        var spokeId = Guid.NewGuid();
+        SetupSpokeExists(spokeId);
+
+        var messages = new List<Message>
+        {
+            new() { Id = Guid.NewGuid(), SpokeId = spokeId, Direction = MessageDirection.UserToSpoke, Content = "hello", Timestamp = DateTimeOffset.UtcNow },
+            new() { Id = Guid.NewGuid(), SpokeId = spokeId, Direction = MessageDirection.SpokeToUser, Content = "hi back", Timestamp = DateTimeOffset.UtcNow }
+        };
+
+        _messageServiceMock
+            .Setup(s => s.GetConversationAsync(spokeId, 50, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(messages);
+        _messageServiceMock
+            .Setup(s => s.GetMessageCountAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        var result = await _controller.GetConversationAsync(spokeId, 50, 0, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<ConversationResponse>(okResult.Value);
+        Assert.Equal(2, response.Messages.Count);
+        Assert.Equal(2, response.Total);
+        Assert.Equal("hello", response.Messages[0].Content);
+        Assert.Equal(MessageDirection.SpokeToUser, response.Messages[1].Direction);
+    }
+
+    [Fact]
+    public async Task GetConversationAsync_NegativeOffset_Returns400()
+    {
+        var result = await _controller.GetConversationAsync(Guid.NewGuid(), 50, -1, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetConversationAsync_ZeroLimit_Returns400()
+    {
+        var result = await _controller.GetConversationAsync(Guid.NewGuid(), 0, 0, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetConversationAsync_LimitCappedAt100()
+    {
+        var spokeId = Guid.NewGuid();
+        SetupSpokeExists(spokeId);
+
+        _messageServiceMock
+            .Setup(s => s.GetConversationAsync(spokeId, 100, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _messageServiceMock
+            .Setup(s => s.GetMessageCountAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        var result = await _controller.GetConversationAsync(spokeId, 500, 0, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<ConversationResponse>(okResult.Value);
+        Assert.Equal(100, response.Limit);
+    }
+
+    [Fact]
+    public async Task GetConversationAsync_NonExistentSpoke_ThrowsNotFoundException()
+    {
+        var spokeId = Guid.NewGuid();
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Nexus.Hub.Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found"));
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
+            () => _controller.GetConversationAsync(spokeId, 50, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_EmptyContent_Returns400()
+    {
+        var result = await _controller.SendMessageAsync(Guid.NewGuid(), new SendMessageRequest { Content = "" }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhitespaceContent_Returns400()
+    {
+        var result = await _controller.SendMessageAsync(Guid.NewGuid(), new SendMessageRequest { Content = "   " }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("INVALID_REQUEST", error.Error.Code);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_NonExistentSpoke_ThrowsNotFoundException()
+    {
+        var spokeId = Guid.NewGuid();
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Nexus.Hub.Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found"));
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
+            () => _controller.SendMessageAsync(spokeId, new SendMessageRequest { Content = "hello" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_SpokeNotConnected_Returns400WithSpokeNotConnected()
+    {
+        var spokeId = Guid.NewGuid();
+        SetupSpokeExists(spokeId);
+
+        // Spoke exists but is not in the hub's connection map, so DispatchMessageToSpoke throws
+        var result = await _controller.SendMessageAsync(spokeId, new SendMessageRequest { Content = "hello" }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("SPOKE_NOT_CONNECTED", error.Error.Code);
     }
 }
