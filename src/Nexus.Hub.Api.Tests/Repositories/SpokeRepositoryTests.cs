@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Infrastructure.Data;
@@ -6,14 +7,30 @@ using Nexus.Hub.Infrastructure.Repositories;
 
 namespace Nexus.Hub.Api.Tests.Repositories;
 
-public class SpokeRepositoryTests
+public class SpokeRepositoryTests : IDisposable
 {
-    private static NexusDbContext CreateInMemoryContext()
+    private readonly SqliteConnection _connection;
+    private readonly NexusDbContext _ctx;
+    private readonly SpokeRepository _repo;
+
+    public SpokeRepositoryTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<NexusDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
-        return new NexusDbContext(options);
+
+        _ctx = new NexusDbContext(options);
+        _ctx.Database.EnsureCreated();
+        _repo = new SpokeRepository(_ctx);
+    }
+
+    public void Dispose()
+    {
+        _ctx.Dispose();
+        _connection.Dispose();
     }
 
     private static Spoke CreateSpoke(SpokeStatus status = SpokeStatus.Online, DateTimeOffset? createdAt = null)
@@ -34,25 +51,21 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task AddAsync_PersistsSpoke()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
         var spoke = CreateSpoke();
 
-        var result = await repo.AddAsync(spoke);
+        var result = await _repo.AddAsync(spoke);
 
         Assert.Equal(spoke.Id, result.Id);
-        Assert.Equal(1, await ctx.Spokes.CountAsync());
+        Assert.Equal(1, await _ctx.Spokes.CountAsync());
     }
 
     [Fact]
     public async Task GetByIdAsync_Exists_ReturnsSpoke()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
         var spoke = CreateSpoke();
-        await repo.AddAsync(spoke);
+        await _repo.AddAsync(spoke);
 
-        var result = await repo.GetByIdAsync(spoke.Id);
+        var result = await _repo.GetByIdAsync(spoke.Id);
 
         Assert.NotNull(result);
         Assert.Equal(spoke.Id, result!.Id);
@@ -61,10 +74,7 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task GetByIdAsync_NotExists_ReturnsNull()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-
-        var result = await repo.GetByIdAsync(Guid.NewGuid());
+        var result = await _repo.GetByIdAsync(Guid.NewGuid());
 
         Assert.Null(result);
     }
@@ -72,12 +82,10 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task ListAsync_ReturnsAllSpokes()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-        await repo.AddAsync(CreateSpoke());
-        await repo.AddAsync(CreateSpoke());
+        await _repo.AddAsync(CreateSpoke());
+        await _repo.AddAsync(CreateSpoke());
 
-        var result = await repo.ListAsync();
+        var result = await _repo.ListAsync();
 
         Assert.Equal(2, result.Count);
     }
@@ -85,13 +93,11 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task ListAsync_FiltersByStatus()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Online));
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Offline));
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Online));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Online));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Offline));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Online));
 
-        var result = await repo.ListAsync(SpokeStatus.Online);
+        var result = await _repo.ListAsync(SpokeStatus.Online);
 
         Assert.Equal(2, result.Count);
         Assert.All(result, s => Assert.Equal(SpokeStatus.Online, s.Status));
@@ -100,12 +106,10 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task ListAsync_RespectsLimitAndOffset()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
         for (int i = 0; i < 5; i++)
-            await repo.AddAsync(CreateSpoke(createdAt: DateTimeOffset.UtcNow.AddMinutes(-i)));
+            await _repo.AddAsync(CreateSpoke(createdAt: DateTimeOffset.UtcNow.AddMinutes(-i)));
 
-        var result = await repo.ListAsync(limit: 2, offset: 1);
+        var result = await _repo.ListAsync(limit: 2, offset: 1);
 
         Assert.Equal(2, result.Count);
     }
@@ -113,50 +117,41 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task UpdateAsync_ModifiesSpoke()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
         var spoke = CreateSpoke(SpokeStatus.Online);
-        await repo.AddAsync(spoke);
+        await _repo.AddAsync(spoke);
 
         spoke.Status = SpokeStatus.Offline;
-        await repo.UpdateAsync(spoke);
+        await _repo.UpdateAsync(spoke);
 
-        var updated = await repo.GetByIdAsync(spoke.Id);
+        var updated = await _repo.GetByIdAsync(spoke.Id);
         Assert.Equal(SpokeStatus.Offline, updated!.Status);
     }
 
     [Fact]
     public async Task DeleteAsync_RemovesSpoke()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
         var spoke = CreateSpoke();
-        await repo.AddAsync(spoke);
+        await _repo.AddAsync(spoke);
 
-        await repo.DeleteAsync(spoke.Id);
+        await _repo.DeleteAsync(spoke.Id);
 
-        Assert.Equal(0, await ctx.Spokes.CountAsync());
+        Assert.Equal(0, await _ctx.Spokes.CountAsync());
     }
 
     [Fact]
     public async Task DeleteAsync_NonExistent_DoesNothing()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-
-        await repo.DeleteAsync(Guid.NewGuid()); // should not throw
+        await _repo.DeleteAsync(Guid.NewGuid()); // should not throw
     }
 
     [Fact]
     public async Task CountAsync_ReturnsTotal()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-        await repo.AddAsync(CreateSpoke());
-        await repo.AddAsync(CreateSpoke());
-        await repo.AddAsync(CreateSpoke());
+        await _repo.AddAsync(CreateSpoke());
+        await _repo.AddAsync(CreateSpoke());
+        await _repo.AddAsync(CreateSpoke());
 
-        var count = await repo.CountAsync();
+        var count = await _repo.CountAsync();
 
         Assert.Equal(3, count);
     }
@@ -164,13 +159,11 @@ public class SpokeRepositoryTests
     [Fact]
     public async Task CountAsync_FiltersByStatus()
     {
-        using var ctx = CreateInMemoryContext();
-        var repo = new SpokeRepository(ctx);
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Online));
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Offline));
-        await repo.AddAsync(CreateSpoke(SpokeStatus.Online));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Online));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Offline));
+        await _repo.AddAsync(CreateSpoke(SpokeStatus.Online));
 
-        var count = await repo.CountAsync(SpokeStatus.Offline);
+        var count = await _repo.CountAsync(SpokeStatus.Offline);
 
         Assert.Equal(1, count);
     }
