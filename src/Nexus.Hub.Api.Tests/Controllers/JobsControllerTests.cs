@@ -177,6 +177,9 @@ public class JobsControllerTests
 
         Assert.IsType<AcceptedResult>(result);
         _jobServiceMock.Verify(s => s.CancelJobAsync(jobId, "no longer needed", It.IsAny<CancellationToken>()), Times.Once);
+        _clientProxyMock.Verify(
+            c => c.SendCoreAsync("JobCancelled", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     #endregion
@@ -197,6 +200,9 @@ public class JobsControllerTests
         var result = await _controller.RecordOutputAsync(jobId, request, CancellationToken.None);
 
         Assert.IsType<AcceptedResult>(result);
+        _jobServiceMock.Verify(
+            s => s.RecordJobOutputAsync(jobId, "hello world", "stdout", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

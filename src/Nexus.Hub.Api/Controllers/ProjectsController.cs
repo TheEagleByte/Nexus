@@ -70,7 +70,7 @@ public class ProjectsController(
     {
         var project = await _projectService.GetProjectAsync(id, cancellationToken);
 
-        var spoke = await _spokeService.GetSpokeAsync(project!.SpokeId, cancellationToken);
+        var spoke = await _spokeService.GetSpokeAsync(project.SpokeId, cancellationToken);
         var activeJobCount = await _jobService.GetJobCountAsync(projectId: id, status: JobStatus.Running, cancellationToken: cancellationToken);
         var totalJobCount = await _jobService.GetJobCountAsync(projectId: id, cancellationToken: cancellationToken);
 
@@ -146,7 +146,7 @@ public class ProjectsController(
         await _projectService.GetProjectAsync(projectId, cancellationToken);
 
         var jobs = await _jobService.ListJobsAsync(projectId: projectId, status: status, type: type, from: from, to: to, limit: limit, offset: offset, cancellationToken: cancellationToken);
-        var total = await _jobService.GetJobCountAsync(projectId: projectId, status: status, from: from, to: to, cancellationToken: cancellationToken);
+        var total = await _jobService.GetJobCountAsync(projectId: projectId, status: status, type: type, from: from, to: to, cancellationToken: cancellationToken);
 
         var response = new JobListResponse
         {

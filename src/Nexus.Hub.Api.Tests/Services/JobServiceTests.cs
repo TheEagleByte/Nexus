@@ -213,7 +213,7 @@ public class JobServiceTests
     public async Task GetJobCountAsync_DelegatesToRepository()
     {
         var spokeId = Guid.NewGuid();
-        _jobRepo.Setup(r => r.CountAsync(spokeId, null, null, null, null, It.IsAny<CancellationToken>())).ReturnsAsync(5);
+        _jobRepo.Setup(r => r.CountAsync(spokeId, null, null, null, null, null, It.IsAny<CancellationToken>())).ReturnsAsync(5);
 
         var result = await _sut.GetJobCountAsync(spokeId: spokeId);
 

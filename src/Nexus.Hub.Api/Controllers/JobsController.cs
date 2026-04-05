@@ -89,16 +89,20 @@ public class JobsController(
     public async Task<IActionResult> CancelAsync(Guid id, [FromBody] CancelJobRequest? request = null, CancellationToken cancellationToken = default)
     {
         var job = await _jobService.GetJobAsync(id, cancellationToken);
+        if (job is null)
+            return NotFound();
+
+        var spokeId = job.SpokeId;
 
         await _jobService.CancelJobAsync(id, request?.Reason, cancellationToken);
 
         try
         {
-            await _hubContext.Clients.Group($"spoke-{job!.SpokeId}").SendAsync("JobCancelled", new { JobId = id, Reason = request?.Reason }, cancellationToken);
+            await _hubContext.Clients.Group($"spoke-{spokeId}").SendAsync("JobCancelled", new { JobId = id, Reason = request?.Reason }, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to notify spoke {SpokeId} of job {JobId} cancellation", job.SpokeId, id);
+            _logger.LogWarning(ex, "Failed to notify spoke {SpokeId} of job {JobId} cancellation", spokeId, id);
         }
 
         return Accepted();

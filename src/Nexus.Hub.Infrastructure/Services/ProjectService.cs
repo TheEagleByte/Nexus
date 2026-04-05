@@ -29,12 +29,12 @@ public class ProjectService(IProjectRepository projectRepository, ISpokeReposito
             UpdatedAt = now
         };
 
-        await _projectRepository.AddAsync(project, cancellationToken);
-        _logger.LogInformation("Project {ProjectId} created for spoke {SpokeId}: {ProjectName}", project.Id, spokeId, name);
-        return project;
+        var created = await _projectRepository.AddAsync(project, cancellationToken);
+        _logger.LogInformation("Project {ProjectId} created for spoke {SpokeId}: {ProjectName}", created.Id, spokeId, name);
+        return created;
     }
 
-    public async Task<Project?> GetProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
+    public async Task<Project> GetProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
         var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
         if (project is null)

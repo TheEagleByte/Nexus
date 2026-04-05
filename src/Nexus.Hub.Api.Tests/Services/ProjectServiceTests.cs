@@ -24,6 +24,8 @@ public class ProjectServiceTests
         var spokeId = Guid.NewGuid();
         _spokeRepo.Setup(r => r.GetByIdAsync(spokeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke { Id = spokeId, Name = "test" });
+        _repo.Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Project p, CancellationToken _) => p);
 
         var result = await _sut.CreateProjectAsync(spokeId, "Test Project", "EXT-1", "A summary");
 
@@ -32,7 +34,7 @@ public class ProjectServiceTests
         Assert.Equal("EXT-1", result.ExternalKey);
         Assert.Equal("A summary", result.Summary);
         Assert.Equal(ProjectStatus.Planning, result.Status);
-        _repo.Verify(r => r.AddAsync(It.IsAny<Project>(), default), Times.Once);
+        _repo.Verify(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

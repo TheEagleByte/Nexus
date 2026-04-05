@@ -14,5 +14,5 @@ public interface IJobService
     Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default);
     Task<List<OutputStream>> GetJobOutputAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
     Task<int> GetJobOutputCountAsync(Guid jobId, CancellationToken cancellationToken = default);
-    Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default);
+    Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default);
 }

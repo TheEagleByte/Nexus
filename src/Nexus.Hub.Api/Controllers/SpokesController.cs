@@ -204,7 +204,7 @@ public class SpokesController(
 
         limit = Math.Min(limit, 100);
 
-        await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
+        var spoke = await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
 
         var projects = await _projectService.ListProjectsAsync(spokeId, status, limit, offset, cancellationToken);
         var total = await _projectService.GetProjectCountAsync(spokeId, status, cancellationToken);
@@ -221,7 +221,7 @@ public class SpokesController(
                 Summary = p.Summary,
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt,
-                SpokeName = string.Empty,
+                SpokeName = spoke!.Name,
                 ActiveJobCount = 0,
                 TotalJobCount = 0
             }).ToList(),

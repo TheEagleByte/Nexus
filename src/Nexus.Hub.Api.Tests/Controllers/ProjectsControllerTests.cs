@@ -140,9 +140,9 @@ public class ProjectsControllerTests
 
         _spokeServiceMock.Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke { Id = spokeId, Name = "test-spoke" });
-        _jobServiceMock.Setup(s => s.GetJobCountAsync(null, projectId, JobStatus.Running, null, null, It.IsAny<CancellationToken>()))
+        _jobServiceMock.Setup(s => s.GetJobCountAsync(null, projectId, JobStatus.Running, null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
-        _jobServiceMock.Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, It.IsAny<CancellationToken>()))
+        _jobServiceMock.Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(5);
 
         var result = await _controller.GetAsync(projectId, CancellationToken.None);
@@ -259,7 +259,7 @@ public class ProjectsControllerTests
             .Setup(s => s.ListJobsAsync(null, projectId, null, null, null, null, 50, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync(jobs);
         _jobServiceMock
-            .Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
 
         var result = await _controller.ListJobsByProjectAsync(projectId, limit: 50, offset: 0, cancellationToken: CancellationToken.None);
@@ -306,7 +306,7 @@ public class ProjectsControllerTests
             .Setup(s => s.ListJobsAsync(null, projectId, null, null, null, null, 100, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _jobServiceMock
-            .Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetJobCountAsync(null, projectId, null, null, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         var result = await _controller.ListJobsByProjectAsync(projectId, limit: 500, offset: 0, cancellationToken: CancellationToken.None);

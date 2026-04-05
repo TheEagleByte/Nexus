@@ -85,7 +85,10 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
 
         job.Status = JobStatus.Cancelled;
         job.CompletedAt = DateTimeOffset.UtcNow;
-        if (reason is not null) job.Summary = reason;
+        if (reason is not null)
+            job.Summary = string.IsNullOrEmpty(job.Summary)
+                ? reason
+                : $"{job.Summary} | Cancelled: {reason}";
 
         await _jobRepository.UpdateAsync(job, cancellationToken);
         _logger.LogInformation("Job {JobId} cancelled. Reason: {Reason}", jobId, reason ?? "none");
@@ -118,6 +121,6 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
     public Task<int> GetJobOutputCountAsync(Guid jobId, CancellationToken cancellationToken = default)
         => _outputStreamRepository.CountByJobAsync(jobId, cancellationToken);
 
-    public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default)
-        => _jobRepository.CountAsync(spokeId, projectId, status, from, to, cancellationToken);
+    public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default)
+        => _jobRepository.CountAsync(spokeId, projectId, status, type, from, to, cancellationToken);
 }
