@@ -18,11 +18,12 @@ public class RepositoryStubTests
     // --- JobRepository stubs ---
 
     [Fact]
-    public async Task JobRepository_GetByIdAsync_ThrowsNotImplementedException()
+    public void JobRepository_GetByIdAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new JobRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.GetByIdAsync(Guid.NewGuid()));
+        var ex = Record.ExceptionAsync(() => repo.GetByIdAsync(Guid.NewGuid())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 
     [Fact]
@@ -71,11 +72,12 @@ public class RepositoryStubTests
     }
 
     [Fact]
-    public async Task JobRepository_UpdateAsync_ThrowsNotImplementedException()
+    public void JobRepository_UpdateAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new JobRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.UpdateAsync(new Job()));
+        var ex = Record.ExceptionAsync(() => repo.UpdateAsync(new Job())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 
     [Fact]
@@ -89,11 +91,12 @@ public class RepositoryStubTests
     // --- ProjectRepository stubs ---
 
     [Fact]
-    public async Task ProjectRepository_GetByIdAsync_ThrowsNotImplementedException()
+    public void ProjectRepository_GetByIdAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.GetByIdAsync(Guid.NewGuid()));
+        var ex = Record.ExceptionAsync(() => repo.GetByIdAsync(Guid.NewGuid())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 
     [Fact]
@@ -121,11 +124,12 @@ public class RepositoryStubTests
     }
 
     [Fact]
-    public async Task ProjectRepository_UpdateAsync_ThrowsNotImplementedException()
+    public void ProjectRepository_UpdateAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.UpdateAsync(new Project()));
+        var ex = Record.ExceptionAsync(() => repo.UpdateAsync(new Project())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 
     [Fact]
@@ -189,11 +193,12 @@ public class RepositoryStubTests
     }
 
     [Fact]
-    public async Task OutputStreamRepository_AddAsync_ThrowsNotImplementedException()
+    public void OutputStreamRepository_AddAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new OutputStreamRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.AddAsync(new OutputStream()));
+        var ex = Record.ExceptionAsync(() => repo.AddAsync(new OutputStream())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 
     [Fact]
@@ -205,10 +210,11 @@ public class RepositoryStubTests
     }
 
     [Fact]
-    public async Task OutputStreamRepository_GetNextSequenceAsync_ThrowsNotImplementedException()
+    public void OutputStreamRepository_GetNextSequenceAsync_IsImplemented()
     {
         using var ctx = CreateContext();
         var repo = new OutputStreamRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.GetNextSequenceAsync(Guid.NewGuid()));
+        var ex = Record.ExceptionAsync(() => repo.GetNextSequenceAsync(Guid.NewGuid())).Result;
+        Assert.IsNotType<NotImplementedException>(ex);
     }
 }
