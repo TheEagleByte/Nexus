@@ -24,8 +24,10 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
 
         if (!Guid.TryParse(spokeIdRaw, out var spokeId))
         {
-            _logger.LogWarning("Connection {ConnectionId} rejected: missing or invalid spokeId", Context.ConnectionId);
-            Context.Abort();
+            // Dashboard/viewer connection — no spokeId required
+            await Groups.AddToGroupAsync(Context.ConnectionId, "dashboard");
+            _logger.LogInformation("Dashboard client connected (connection {ConnectionId})", Context.ConnectionId);
+            await base.OnConnectedAsync();
             return;
         }
 
@@ -72,7 +74,9 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         }
         else
         {
-            _logger.LogWarning("Connection {ConnectionId} disconnected but was not in spoke map", Context.ConnectionId);
+            // Dashboard/viewer client disconnected
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "dashboard");
+            _logger.LogInformation("Dashboard client disconnected (connection {ConnectionId})", Context.ConnectionId);
         }
 
         if (exception is not null)
