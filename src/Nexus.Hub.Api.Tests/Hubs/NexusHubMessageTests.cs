@@ -24,6 +24,7 @@ public class NexusHubMessageTests : IDisposable
     private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
     private readonly Mock<IHubClients> _hubClientsMock = new();
     private readonly Mock<ISingleClientProxy> _groupClientMock = new();
+    private readonly Mock<IClientProxy> _dispatchAllClientMock = new();
     private readonly NexusHub _hub;
 
     public NexusHubMessageTests()
@@ -32,7 +33,7 @@ public class NexusHubMessageTests : IDisposable
 
         _clientsMock.Setup(c => c.All).Returns(_allClientsMock.Object);
         _hubClientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_groupClientMock.Object);
-        _hubClientsMock.Setup(c => c.All).Returns(_groupClientMock.Object);
+        _hubClientsMock.Setup(c => c.All).Returns(_dispatchAllClientMock.Object);
         _hubContextMock.Setup(c => c.Clients).Returns(_hubClientsMock.Object);
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
@@ -171,7 +172,7 @@ public class NexusHubMessageTests : IDisposable
 
         _messageServiceMock.Verify(s => s.RecordMessageAsync(spokeId, MessageDirection.UserToSpoke, "do this task", null, It.IsAny<CancellationToken>()), Times.Once);
         _groupClientMock.Verify(c => c.SendCoreAsync("ReceiveMessage", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()), Times.Once);
-        _groupClientMock.Verify(c => c.SendCoreAsync("MessageReceived", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()), Times.Once);
+        _dispatchAllClientMock.Verify(c => c.SendCoreAsync("MessageReceived", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
