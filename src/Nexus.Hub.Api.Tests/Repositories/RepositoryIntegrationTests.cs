@@ -348,39 +348,190 @@ public class RepositoryIntegrationTests : IDisposable
     }
 
     // ==========================================================================
-    // MessageRepository — all stubs
+    // MessageRepository — full CRUD
     // ==========================================================================
 
+    private Message CreateMessage(Guid spokeId, MessageDirection direction = MessageDirection.UserToSpoke, Guid? jobId = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        SpokeId = spokeId,
+        Direction = direction,
+        Content = "test message",
+        JobId = jobId,
+        Timestamp = DateTimeOffset.UtcNow
+    };
+
     [Fact]
-    public async Task MessageRepository_GetByIdAsync_ThrowsNotImplementedException()
+    public async Task MessageRepository_AddAndGetById_RoundTrips()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
         var repo = new MessageRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.GetByIdAsync(Guid.NewGuid()));
+        var message = CreateMessage(spoke.Id);
+        await repo.AddAsync(message);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(message.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(message.Content, loaded.Content);
+        Assert.Equal(MessageDirection.UserToSpoke, loaded.Direction);
     }
 
     [Fact]
-    public async Task MessageRepository_ListBySpokeAsync_ThrowsNotImplementedException()
+    public async Task MessageRepository_GetByIdAsync_ReturnsNullForMissing()
     {
         using var ctx = _factory.CreateContext();
         var repo = new MessageRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.ListBySpokeAsync(Guid.NewGuid()));
+
+        var result = await repo.GetByIdAsync(Guid.NewGuid());
+
+        Assert.Null(result);
     }
 
     [Fact]
-    public async Task MessageRepository_AddAsync_ThrowsNotImplementedException()
+    public async Task MessageRepository_ListBySpokeAsync_ReturnsOrderedByTimestamp()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
         var repo = new MessageRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.AddAsync(new Message()));
+        var older = CreateMessage(spoke.Id);
+        older.Timestamp = DateTimeOffset.UtcNow.AddMinutes(-5);
+        older.Content = "first";
+        await repo.AddAsync(older);
+
+        var newer = CreateMessage(spoke.Id, MessageDirection.SpokeToUser);
+        newer.Timestamp = DateTimeOffset.UtcNow;
+        newer.Content = "second";
+        await repo.AddAsync(newer);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var list = await repo2.ListBySpokeAsync(spoke.Id);
+
+        Assert.Equal(2, list.Count);
+        Assert.Equal("first", list[0].Content);
+        Assert.Equal("second", list[1].Content);
     }
 
     [Fact]
-    public async Task MessageRepository_CountBySpokeAsync_ThrowsNotImplementedException()
+    public async Task MessageRepository_ListBySpokeAsync_RespectsLimitAndOffset()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
         var repo = new MessageRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.CountBySpokeAsync(Guid.NewGuid()));
+        for (int i = 0; i < 5; i++)
+        {
+            var msg = CreateMessage(spoke.Id);
+            msg.Timestamp = DateTimeOffset.UtcNow.AddMinutes(i);
+            msg.Content = $"msg-{i}";
+            await repo.AddAsync(msg);
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var page = await repo2.ListBySpokeAsync(spoke.Id, limit: 2, offset: 1);
+
+        Assert.Equal(2, page.Count);
+        Assert.Equal("msg-1", page[0].Content);
+        Assert.Equal("msg-2", page[1].Content);
+    }
+
+    [Fact]
+    public async Task MessageRepository_ListBySpokeAsync_FiltersToCorrectSpoke()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        await ctx.SaveChangesAsync();
+
+        var repo = new MessageRepository(ctx);
+        await repo.AddAsync(CreateMessage(spoke1.Id));
+        await repo.AddAsync(CreateMessage(spoke1.Id));
+        await repo.AddAsync(CreateMessage(spoke2.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var spoke1Messages = await repo2.ListBySpokeAsync(spoke1.Id);
+
+        Assert.Equal(2, spoke1Messages.Count);
+    }
+
+    [Fact]
+    public async Task MessageRepository_CountBySpokeAsync_ReturnsCorrectCount()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new MessageRepository(ctx);
+        await repo.AddAsync(CreateMessage(spoke.Id));
+        await repo.AddAsync(CreateMessage(spoke.Id));
+        await repo.AddAsync(CreateMessage(spoke.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var count = await repo2.CountBySpokeAsync(spoke.Id);
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task MessageRepository_AddAsync_PersistsJobId()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        var project = CreateProject(spoke.Id);
+        ctx.Projects.Add(project);
+        var job = CreateJob(project.Id, spoke.Id);
+        ctx.Jobs.Add(job);
+        await ctx.SaveChangesAsync();
+
+        var repo = new MessageRepository(ctx);
+        var message = CreateMessage(spoke.Id, jobId: job.Id);
+        await repo.AddAsync(message);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(message.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(job.Id, loaded.JobId);
+    }
+
+    [Fact]
+    public async Task MessageRepository_AddAsync_SupportsLongContent()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new MessageRepository(ctx);
+        var longContent = new string('x', 100_000);
+        var message = CreateMessage(spoke.Id);
+        message.Content = longContent;
+        await repo.AddAsync(message);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(message.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(100_000, loaded.Content.Length);
     }
 
     // ==========================================================================

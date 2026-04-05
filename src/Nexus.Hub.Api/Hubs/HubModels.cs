@@ -92,3 +92,8 @@ public record JobOutputChunk(
     string StreamType,
     DateTimeOffset Timestamp
 );
+
+public record SpokeMessage(
+    string Content,
+    Guid? JobId
+);

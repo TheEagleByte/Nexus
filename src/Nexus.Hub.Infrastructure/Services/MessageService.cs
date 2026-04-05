@@ -10,12 +10,26 @@ public class MessageService(IMessageRepository messageRepository, ILogger<Messag
     private readonly IMessageRepository _messageRepository = messageRepository;
     private readonly ILogger<MessageService> _logger = logger;
 
-    public Task<Message> RecordMessageAsync(Guid spokeId, MessageDirection direction, string content, Guid? jobId = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Message> RecordMessageAsync(Guid spokeId, MessageDirection direction, string content, Guid? jobId = null, CancellationToken cancellationToken = default)
+    {
+        var message = new Message
+        {
+            Id = Guid.NewGuid(),
+            SpokeId = spokeId,
+            Direction = direction,
+            Content = content,
+            JobId = jobId,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        await _messageRepository.AddAsync(message, cancellationToken);
+        _logger.LogInformation("Message recorded: {MessageId} ({Direction}) for spoke {SpokeId}", message.Id, direction, spokeId);
+        return message;
+    }
 
     public Task<List<Message>> GetConversationAsync(Guid spokeId, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _messageRepository.ListBySpokeAsync(spokeId, limit, offset, cancellationToken);
 
     public Task<int> GetMessageCountAsync(Guid spokeId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => _messageRepository.CountBySpokeAsync(spokeId, cancellationToken);
 }
