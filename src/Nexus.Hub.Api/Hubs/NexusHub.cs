@@ -114,6 +114,12 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         catch (NotFoundException)
         {
             spoke = await _spokeService.RegisterSpokeAsync(registration.Name, capabilities, config, profile);
+
+            // Remap connection to the newly assigned spoke ID
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spoke-{spokeId}");
+            spokeId = spoke.Id;
+            ConnectionToSpokeMap[Context.ConnectionId] = spokeId;
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"spoke-{spokeId}");
         }
 
         _logger.LogInformation(
@@ -150,11 +156,7 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         try
         {
             await _spokeService.UpdateSpokeHeartbeatAsync(spokeId);
-
-            if (heartbeat.Status != SpokeStatus.Online)
-            {
-                await _spokeService.UpdateSpokeStatusAsync(spokeId, heartbeat.Status);
-            }
+            await _spokeService.UpdateSpokeStatusAsync(spokeId, heartbeat.Status);
         }
         catch (Exception ex)
         {

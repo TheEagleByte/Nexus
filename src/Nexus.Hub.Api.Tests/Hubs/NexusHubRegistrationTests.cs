@@ -198,6 +198,7 @@ public class NexusHubRegistrationTests : IDisposable
         await _hub.Heartbeat(heartbeat);
 
         _spokeServiceMock.Verify(s => s.UpdateSpokeHeartbeatAsync(spokeId, default), Times.Once);
+        _spokeServiceMock.Verify(s => s.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online, default), Times.AtLeastOnce);
         _callerMock.Verify(c => c.SendCoreAsync(
             "HeartbeatAcknowledged",
             It.Is<object?[]>(args => args.Length == 2 && (Guid)args[0]! == spokeId),
