@@ -89,26 +89,109 @@ public class JobServiceTests
     {
         var spokeId = Guid.NewGuid();
         var jobs = new List<Job> { new() { Id = Guid.NewGuid(), Status = JobStatus.Queued, CreatedAt = DateTimeOffset.UtcNow } };
-        _jobRepo.Setup(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>())).ReturnsAsync(jobs);
+        _jobRepo.Setup(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, null, null, 50, 0, It.IsAny<CancellationToken>())).ReturnsAsync(jobs);
 
         var result = await _sut.ListJobsAsync(spokeId: spokeId, status: JobStatus.Queued);
 
         Assert.Single(result);
-        _jobRepo.Verify(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>()), Times.Once);
+        _jobRepo.Verify(r => r.ListAsync(spokeId, null, JobStatus.Queued, null, null, null, 50, 0, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ApproveJobAsync_ThrowsNotImplementedException()
+    public async Task ApproveJobAsync_ApprovedJob_TransitionsToQueued()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.AwaitingApproval, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        await _sut.ApproveJobAsync(jobId, approved: true, approvedBy: "user1");
+
+        Assert.Equal(JobStatus.Queued, job.Status);
+        Assert.NotNull(job.ApprovedAt);
+        Assert.Equal("user1", job.ApprovedBy);
+        _jobRepo.Verify(r => r.UpdateAsync(job, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApproveJobAsync_RejectedJob_TransitionsToCancelled()
+    {
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.AwaitingApproval, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        await _sut.ApproveJobAsync(jobId, approved: false);
+
+        Assert.Equal(JobStatus.Cancelled, job.Status);
+        Assert.NotNull(job.CompletedAt);
+    }
+
+    [Fact]
+    public async Task ApproveJobAsync_NotAwaitingApproval_ThrowsValidationException()
+    {
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.ValidationException>(
+            () => _sut.ApproveJobAsync(jobId));
+    }
+
+    [Fact]
+    public async Task ApproveJobAsync_NonExistent_ThrowsNotFoundException()
+    {
+        _jobRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync((Job?)null);
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
             () => _sut.ApproveJobAsync(Guid.NewGuid()));
     }
 
     [Fact]
-    public async Task CancelJobAsync_ThrowsNotImplementedException()
+    public async Task CancelJobAsync_ActiveJob_TransitionsToCancelled()
     {
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => _sut.CancelJobAsync(Guid.NewGuid()));
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        await _sut.CancelJobAsync(jobId, "user requested");
+
+        Assert.Equal(JobStatus.Cancelled, job.Status);
+        Assert.NotNull(job.CompletedAt);
+        Assert.Equal("user requested", job.Summary);
+        _jobRepo.Verify(r => r.UpdateAsync(job, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelJobAsync_TerminalState_ThrowsValidationException()
+    {
+        var jobId = Guid.NewGuid();
+        var job = new Job { Id = jobId, Status = JobStatus.Completed, CreatedAt = DateTimeOffset.UtcNow };
+        _jobRepo.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.ValidationException>(
+            () => _sut.CancelJobAsync(jobId));
+    }
+
+    [Fact]
+    public async Task GetJobOutputAsync_DelegatesToRepository()
+    {
+        var jobId = Guid.NewGuid();
+        var chunks = new List<OutputStream> { new() { Id = Guid.NewGuid(), JobId = jobId, Sequence = 0, Content = "test" } };
+        _outputRepo.Setup(r => r.ListByJobAsync(jobId, 100, 0, It.IsAny<CancellationToken>())).ReturnsAsync(chunks);
+
+        var result = await _sut.GetJobOutputAsync(jobId);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetJobOutputCountAsync_DelegatesToRepository()
+    {
+        var jobId = Guid.NewGuid();
+        _outputRepo.Setup(r => r.CountByJobAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(42);
+
+        var result = await _sut.GetJobOutputCountAsync(jobId);
+
+        Assert.Equal(42, result);
     }
 
     [Fact]
@@ -130,7 +213,7 @@ public class JobServiceTests
     public async Task GetJobCountAsync_DelegatesToRepository()
     {
         var spokeId = Guid.NewGuid();
-        _jobRepo.Setup(r => r.CountAsync(spokeId, null, null, It.IsAny<CancellationToken>())).ReturnsAsync(5);
+        _jobRepo.Setup(r => r.CountAsync(spokeId, null, null, null, null, It.IsAny<CancellationToken>())).ReturnsAsync(5);
 
         var result = await _sut.GetJobCountAsync(spokeId: spokeId);
 

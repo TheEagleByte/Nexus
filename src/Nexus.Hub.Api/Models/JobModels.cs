@@ -71,5 +71,12 @@ public class OutputChunk
 {
     public long Sequence { get; set; }
     public string Content { get; set; } = string.Empty;
+    public string StreamType { get; set; } = "stdout";
     public DateTimeOffset Timestamp { get; set; }
+}
+
+public class RecordOutputRequest
+{
+    public required string Content { get; set; }
+    public string StreamType { get; set; } = "stdout";
 }

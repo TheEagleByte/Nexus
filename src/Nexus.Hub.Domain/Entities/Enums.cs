@@ -13,7 +13,8 @@ public enum ProjectStatus
     Active,
     Paused,
     Completed,
-    Failed
+    Failed,
+    Archived
 }
 
 public enum JobStatus

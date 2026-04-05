@@ -16,6 +16,7 @@ namespace Nexus.Hub.Api.Tests.Controllers;
 public class SpokesControllerTests
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();
+    private readonly Mock<IProjectService> _projectServiceMock = new();
     private readonly Mock<IMessageService> _messageServiceMock = new();
     private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
     private readonly Mock<ILogger<SpokesController>> _loggerMock = new();
@@ -31,7 +32,7 @@ public class SpokesControllerTests
             })
             .Build();
 
-        _controller = new SpokesController(_spokeServiceMock.Object, _messageServiceMock.Object, _hubContextMock.Object, config, _loggerMock.Object)
+        _controller = new SpokesController(_spokeServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _hubContextMock.Object, config, _loggerMock.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -394,13 +395,13 @@ public class SpokesControllerTests
         };
 
         _messageServiceMock
-            .Setup(s => s.GetConversationAsync(spokeId, 50, 0, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetConversationAsync(spokeId, null, null, 50, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync(messages);
         _messageServiceMock
-            .Setup(s => s.GetMessageCountAsync(spokeId, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetMessageCountAsync(spokeId, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
 
-        var result = await _controller.GetConversationAsync(spokeId, 50, 0, CancellationToken.None);
+        var result = await _controller.GetConversationAsync(spokeId, limit: 50, offset: 0, cancellationToken: CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = Assert.IsType<ConversationResponse>(okResult.Value);
@@ -413,7 +414,7 @@ public class SpokesControllerTests
     [Fact]
     public async Task GetConversationAsync_NegativeOffset_Returns400()
     {
-        var result = await _controller.GetConversationAsync(Guid.NewGuid(), 50, -1, CancellationToken.None);
+        var result = await _controller.GetConversationAsync(Guid.NewGuid(), limit: 50, offset: -1, cancellationToken: CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         var error = Assert.IsType<ErrorResponse>(badRequest.Value);
@@ -423,7 +424,7 @@ public class SpokesControllerTests
     [Fact]
     public async Task GetConversationAsync_ZeroLimit_Returns400()
     {
-        var result = await _controller.GetConversationAsync(Guid.NewGuid(), 0, 0, CancellationToken.None);
+        var result = await _controller.GetConversationAsync(Guid.NewGuid(), limit: 0, offset: 0, cancellationToken: CancellationToken.None);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         var error = Assert.IsType<ErrorResponse>(badRequest.Value);
@@ -437,13 +438,13 @@ public class SpokesControllerTests
         SetupSpokeExists(spokeId);
 
         _messageServiceMock
-            .Setup(s => s.GetConversationAsync(spokeId, 100, 0, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetConversationAsync(spokeId, null, null, 100, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _messageServiceMock
-            .Setup(s => s.GetMessageCountAsync(spokeId, It.IsAny<CancellationToken>()))
+            .Setup(s => s.GetMessageCountAsync(spokeId, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
-        var result = await _controller.GetConversationAsync(spokeId, 500, 0, CancellationToken.None);
+        var result = await _controller.GetConversationAsync(spokeId, limit: 500, offset: 0, cancellationToken: CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         var response = Assert.IsType<ConversationResponse>(okResult.Value);
@@ -459,7 +460,7 @@ public class SpokesControllerTests
             .ThrowsAsync(new Nexus.Hub.Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found"));
 
         await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
-            () => _controller.GetConversationAsync(spokeId, 50, 0, CancellationToken.None));
+            () => _controller.GetConversationAsync(spokeId, limit: 50, offset: 0, cancellationToken: CancellationToken.None));
     }
 
     [Fact]

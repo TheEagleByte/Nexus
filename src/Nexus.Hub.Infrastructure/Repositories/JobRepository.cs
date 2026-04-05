@@ -28,7 +28,7 @@ public class JobRepository(NexusDbContext context) : IJobRepository
         return await query.OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
     }
 
-    public async Task<List<Job>> ListAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+    public async Task<List<Job>> ListAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
     {
         var query = _context.Jobs.AsQueryable();
         if (spokeId.HasValue)
@@ -39,6 +39,10 @@ public class JobRepository(NexusDbContext context) : IJobRepository
             query = query.Where(j => j.Status == status.Value);
         if (type.HasValue)
             query = query.Where(j => j.Type == type.Value);
+        if (from.HasValue)
+            query = query.Where(j => j.CreatedAt >= from.Value);
+        if (to.HasValue)
+            query = query.Where(j => j.CreatedAt <= to.Value);
         return await query.OrderByDescending(j => j.CreatedAt).ThenBy(j => j.Id).Skip(offset).Take(limit).ToListAsync(cancellationToken);
     }
 
@@ -55,7 +59,7 @@ public class JobRepository(NexusDbContext context) : IJobRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<int> CountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
+    public async Task<int> CountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default)
     {
         var query = _context.Jobs.AsQueryable();
         if (spokeId.HasValue)
@@ -64,6 +68,10 @@ public class JobRepository(NexusDbContext context) : IJobRepository
             query = query.Where(j => j.ProjectId == projectId.Value);
         if (status.HasValue)
             query = query.Where(j => j.Status == status.Value);
+        if (from.HasValue)
+            query = query.Where(j => j.CreatedAt >= from.Value);
+        if (to.HasValue)
+            query = query.Where(j => j.CreatedAt <= to.Value);
         return await query.CountAsync(cancellationToken);
     }
 }

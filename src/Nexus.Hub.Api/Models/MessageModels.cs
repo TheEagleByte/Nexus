@@ -18,6 +18,14 @@ public class MessageResponse
     public DateTimeOffset Timestamp { get; set; }
 }
 
+public class CreateMessageRequest
+{
+    public Guid SpokeId { get; set; }
+    public MessageDirection Direction { get; set; }
+    public required string Content { get; set; }
+    public Guid? JobId { get; set; }
+}
+
 public class ConversationResponse
 {
     public List<MessageResponse> Messages { get; set; } = [];

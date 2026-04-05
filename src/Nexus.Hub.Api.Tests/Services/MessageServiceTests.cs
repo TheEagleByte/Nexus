@@ -71,14 +71,14 @@ public class MessageServiceTests
         };
 
         _repo
-            .Setup(r => r.ListBySpokeAsync(spokeId, 25, 10, It.IsAny<CancellationToken>()))
+            .Setup(r => r.ListBySpokeAsync(spokeId, null, null, 25, 10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(messages);
 
-        var result = await _sut.GetConversationAsync(spokeId, 25, 10);
+        var result = await _sut.GetConversationAsync(spokeId, null, null, 25, 10);
 
         Assert.Single(result);
         Assert.Equal("hi", result[0].Content);
-        _repo.Verify(r => r.ListBySpokeAsync(spokeId, 25, 10, It.IsAny<CancellationToken>()), Times.Once);
+        _repo.Verify(r => r.ListBySpokeAsync(spokeId, null, null, 25, 10, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class MessageServiceTests
     {
         var spokeId = Guid.NewGuid();
         _repo
-            .Setup(r => r.CountBySpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.CountBySpokeAsync(spokeId, null, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(42);
 
         var result = await _sut.GetMessageCountAsync(spokeId);

@@ -7,10 +7,12 @@ public interface IJobService
 {
     Task<Job> CreateJobAsync(Guid spokeId, Guid projectId, JobType type, bool requiresApproval = false, JsonDocument? context = null, CancellationToken cancellationToken = default);
     Task<Job?> GetJobAsync(Guid jobId, CancellationToken cancellationToken = default);
-    Task<List<Job>> ListJobsAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default);
+    Task<List<Job>> ListJobsAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default);
     Task ApproveJobAsync(Guid jobId, bool approved = true, string? approvedBy = null, JsonDocument? modifications = null, CancellationToken cancellationToken = default);
     Task CancelJobAsync(Guid jobId, string? reason = null, CancellationToken cancellationToken = default);
     Task UpdateJobStatusAsync(Guid jobId, JobStatus status, string? summary = null, CancellationToken cancellationToken = default);
     Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default);
-    Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default);
+    Task<List<OutputStream>> GetJobOutputAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default);
+    Task<int> GetJobOutputCountAsync(Guid jobId, CancellationToken cancellationToken = default);
+    Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default);
 }

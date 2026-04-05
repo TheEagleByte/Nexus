@@ -29,7 +29,7 @@ public class NexusHubReconnectionTests : IDisposable
 
         _clientsMock.Setup(c => c.Caller).Returns(_callerMock.Object);
         _jobServiceMock
-            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Job>());
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
@@ -106,7 +106,7 @@ public class NexusHubReconnectionTests : IDisposable
         };
 
         _jobServiceMock
-            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, null, null, 50, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync(queuedJobs);
 
         await _hub.OnConnectedAsync();
@@ -152,7 +152,7 @@ public class NexusHubReconnectionTests : IDisposable
         };
 
         _jobServiceMock
-            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, null, null, 50, 0, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Job> { queuedJob });
 
         await _hub.OnConnectedAsync();
@@ -173,7 +173,7 @@ public class NexusHubReconnectionTests : IDisposable
             .Returns(Task.CompletedTask);
 
         _jobServiceMock
-            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, 50, 0, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListJobsAsync(spokeId, null, JobStatus.Queued, null, null, null, 50, 0, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("DB down"));
 
         await _hub.OnConnectedAsync();

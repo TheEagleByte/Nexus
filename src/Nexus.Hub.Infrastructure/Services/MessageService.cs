@@ -27,9 +27,9 @@ public class MessageService(IMessageRepository messageRepository, ILogger<Messag
         return message;
     }
 
-    public Task<List<Message>> GetConversationAsync(Guid spokeId, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => _messageRepository.ListBySpokeAsync(spokeId, limit, offset, cancellationToken);
+    public Task<List<Message>> GetConversationAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+        => _messageRepository.ListBySpokeAsync(spokeId, jobId, direction, limit, offset, cancellationToken);
 
-    public Task<int> GetMessageCountAsync(Guid spokeId, CancellationToken cancellationToken = default)
-        => _messageRepository.CountBySpokeAsync(spokeId, cancellationToken);
+    public Task<int> GetMessageCountAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, CancellationToken cancellationToken = default)
+        => _messageRepository.CountBySpokeAsync(spokeId, jobId, direction, cancellationToken);
 }

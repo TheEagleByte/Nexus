@@ -12,14 +12,20 @@ public class MessageRepository(NexusDbContext context) : IMessageRepository
     public async Task<Message?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => await _context.Messages.FindAsync([id], cancellationToken);
 
-    public async Task<List<Message>> ListBySpokeAsync(Guid spokeId, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => await _context.Messages
-            .Where(m => m.SpokeId == spokeId)
+    public async Task<List<Message>> ListBySpokeAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Messages.Where(m => m.SpokeId == spokeId);
+        if (jobId.HasValue)
+            query = query.Where(m => m.JobId == jobId.Value);
+        if (direction.HasValue)
+            query = query.Where(m => m.Direction == direction.Value);
+        return await query
             .OrderBy(m => m.Timestamp)
             .ThenBy(m => m.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<Message> AddAsync(Message message, CancellationToken cancellationToken = default)
     {
@@ -28,6 +34,13 @@ public class MessageRepository(NexusDbContext context) : IMessageRepository
         return message;
     }
 
-    public async Task<int> CountBySpokeAsync(Guid spokeId, CancellationToken cancellationToken = default)
-        => await _context.Messages.CountAsync(m => m.SpokeId == spokeId, cancellationToken);
+    public async Task<int> CountBySpokeAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Messages.Where(m => m.SpokeId == spokeId);
+        if (jobId.HasValue)
+            query = query.Where(m => m.JobId == jobId.Value);
+        if (direction.HasValue)
+            query = query.Where(m => m.Direction == direction.Value);
+        return await query.CountAsync(cancellationToken);
+    }
 }
