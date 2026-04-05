@@ -448,6 +448,35 @@ public class RepositoryIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task MessageRepository_ListBySpokeAsync_DeterministicOnSameTimestamp()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new MessageRepository(ctx);
+        var sameTime = DateTimeOffset.UtcNow;
+        var ids = new List<Guid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var msg = CreateMessage(spoke.Id);
+            msg.Timestamp = sameTime;
+            msg.Content = $"tied-{i}";
+            await repo.AddAsync(msg);
+            ids.Add(msg.Id);
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new MessageRepository(ctx2);
+        var page1 = await repo2.ListBySpokeAsync(spoke.Id, limit: 2, offset: 0);
+        var page2 = await repo2.ListBySpokeAsync(spoke.Id, limit: 2, offset: 2);
+
+        var allIds = page1.Concat(page2).Select(m => m.Id).ToList();
+        Assert.Equal(4, allIds.Distinct().Count());
+    }
+
+    [Fact]
     public async Task MessageRepository_ListBySpokeAsync_FiltersToCorrectSpoke()
     {
         using var ctx = _factory.CreateContext();

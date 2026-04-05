@@ -171,6 +171,7 @@ public class NexusHubMessageTests : IDisposable
 
         _messageServiceMock.Verify(s => s.RecordMessageAsync(spokeId, MessageDirection.UserToSpoke, "do this task", null, It.IsAny<CancellationToken>()), Times.Once);
         _groupClientMock.Verify(c => c.SendCoreAsync("ReceiveMessage", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()), Times.Once);
+        _groupClientMock.Verify(c => c.SendCoreAsync("MessageReceived", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

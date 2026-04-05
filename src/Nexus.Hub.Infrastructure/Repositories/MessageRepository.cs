@@ -16,6 +16,7 @@ public class MessageRepository(NexusDbContext context) : IMessageRepository
         => await _context.Messages
             .Where(m => m.SpokeId == spokeId)
             .OrderBy(m => m.Timestamp)
+            .ThenBy(m => m.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);

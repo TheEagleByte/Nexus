@@ -493,4 +493,18 @@ public class SpokesControllerTests
         await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
             () => _controller.SendMessageAsync(spokeId, new SendMessageRequest { Content = "hello" }, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task SendMessageAsync_SpokeNotConnected_Returns400WithSpokeNotConnected()
+    {
+        var spokeId = Guid.NewGuid();
+        SetupSpokeExists(spokeId);
+
+        // Spoke exists but is not in the hub's connection map, so DispatchMessageToSpoke throws
+        var result = await _controller.SendMessageAsync(spokeId, new SendMessageRequest { Content = "hello" }, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var error = Assert.IsType<ErrorResponse>(badRequest.Value);
+        Assert.Equal("SPOKE_NOT_CONNECTED", error.Error.Code);
+    }
 }
