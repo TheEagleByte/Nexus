@@ -57,3 +57,18 @@ public record SpokeInfo(
     SpokeStatus Status,
     DateTimeOffset RegisteredAt
 );
+
+
+public record JobAssignment(
+    Guid JobId,
+    Guid ProjectId,
+    JobType Type,
+    string Context,
+    JobParameters Parameters,
+    bool RequireApproval,
+    DateTimeOffset AssignedAt
+);
+
+public record JobParameters(
+    Dictionary<string, object>? CustomFields
+);

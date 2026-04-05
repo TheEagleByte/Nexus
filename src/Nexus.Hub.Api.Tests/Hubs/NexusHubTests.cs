@@ -14,13 +14,14 @@ namespace Nexus.Hub.Api.Tests.Hubs;
 public class NexusHubTests : IDisposable
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();
+    private readonly Mock<IJobService> _jobServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
     private readonly Mock<IGroupManager> _groupsMock = new();
     private readonly NexusHub _hub;
 
     public NexusHubTests()
     {
-        _hub = new NexusHub(_spokeServiceMock.Object, _loggerMock.Object);
+        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _loggerMock.Object);
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
         hubType.GetProperty("Groups")!.SetValue(_hub, _groupsMock.Object);
