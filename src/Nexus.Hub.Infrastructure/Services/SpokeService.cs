@@ -49,8 +49,18 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
     public Task<List<Spoke>> ListSpokesAsync(SpokeStatus? status = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
         => _spokeRepository.ListAsync(status, limit, offset, cancellationToken);
 
-    public Task UpdateSpokeStatusAsync(Guid spokeId, SpokeStatus status, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task UpdateSpokeStatusAsync(Guid spokeId, SpokeStatus status, CancellationToken cancellationToken = default)
+    {
+        var spoke = await _spokeRepository.GetByIdAsync(spokeId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found");
+
+        spoke.Status = status;
+        spoke.LastSeen = DateTimeOffset.UtcNow;
+        spoke.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _spokeRepository.UpdateAsync(spoke, cancellationToken);
+        _logger.LogInformation("Spoke {SpokeId} status updated to {Status}", spokeId, status);
+    }
 
     public Task UpdateSpokeHeartbeatAsync(Guid spokeId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
