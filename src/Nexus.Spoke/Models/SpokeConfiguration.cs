@@ -6,6 +6,7 @@ public class SpokeConfiguration
     public HubConnectionConfig Hub { get; set; } = new();
     public CapabilitiesConfig Capabilities { get; set; } = new();
     public WorkspaceConfig Workspace { get; set; } = new();
+    public JiraIntegrationConfig Jira { get; set; } = new();
     public ApprovalConfig Approval { get; set; } = new();
 
     public class SpokeIdentityConfig
@@ -35,6 +36,14 @@ public class SpokeConfiguration
     {
         public string BaseDirectory { get; set; } = string.Empty;
         public string? SkillsDirectory { get; set; }
+    }
+
+    public class JiraIntegrationConfig
+    {
+        public string InstanceUrl { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
+        public string[] ProjectKeys { get; set; } = [];
     }
 
     public class ApprovalConfig
