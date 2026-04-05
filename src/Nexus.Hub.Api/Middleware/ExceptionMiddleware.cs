@@ -57,6 +57,12 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
             }
         };
 
+        if (context.Response.HasStarted)
+        {
+            _logger.LogWarning("Response already started, cannot write error response");
+            return;
+        }
+
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(response, JsonOptions);
