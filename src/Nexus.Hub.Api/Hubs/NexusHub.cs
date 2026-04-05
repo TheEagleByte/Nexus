@@ -7,11 +7,12 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
 
-public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
+public class NexusHub(ISpokeService spokeService, IJobService jobService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
 {
     private static readonly ConcurrentDictionary<string, Guid> ConnectionToSpokeMap = new();
 
     private readonly ISpokeService _spokeService = spokeService;
+    private readonly IJobService _jobService = jobService;
     private readonly ILogger<NexusHub> _logger = logger;
 
     public override async Task OnConnectedAsync()
@@ -169,6 +170,41 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
             spokeId, correlationId);
 
         await Clients.Caller.SendAsync("HeartbeatAcknowledged", spokeId, DateTimeOffset.UtcNow);
+    }
+
+    public async Task SendJobAssignment(Guid spokeId, Guid projectId, JobType type, string context,
+        bool requireApproval, Dictionary<string, object>? customFields = null)
+    {
+        var correlationId = Guid.NewGuid();
+
+        // Verify spoke is connected
+        var isConnected = ConnectionToSpokeMap.Values.Contains(spokeId);
+        if (!isConnected)
+        {
+            _logger.LogWarning(
+                "Job assignment failed: spoke {SpokeId} is not connected (CorrelationId: {CorrelationId})",
+                spokeId, correlationId);
+            throw new HubException($"Spoke {spokeId} is not connected.");
+        }
+
+        var contextDoc = JsonSerializer.SerializeToDocument(context);
+        var job = await _jobService.CreateJobAsync(spokeId, projectId, type, requireApproval, contextDoc);
+
+        var assignment = new JobAssignment(
+            JobId: job.Id,
+            ProjectId: projectId,
+            Type: type,
+            Context: context,
+            Parameters: new JobParameters(customFields),
+            RequireApproval: requireApproval,
+            AssignedAt: DateTimeOffset.UtcNow
+        );
+
+        await Clients.Group($"spoke-{spokeId}").SendAsync("AssignJob", assignment);
+
+        _logger.LogInformation(
+            "Job {JobId} assigned to spoke {SpokeId} (project: {ProjectId}, type: {JobType}, approval: {RequireApproval}, CorrelationId: {CorrelationId})",
+            job.Id, spokeId, projectId, type, requireApproval, correlationId);
     }
 
     public static Guid? GetSpokeIdByConnection(string connectionId)

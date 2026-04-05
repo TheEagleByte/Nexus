@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Repositories;
 using Nexus.Hub.Infrastructure.Data;
@@ -20,8 +21,12 @@ public class JobRepository(NexusDbContext context) : IJobRepository
     public Task<List<Job>> ListAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task<Job> AddAsync(Job job, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Job> AddAsync(Job job, CancellationToken cancellationToken = default)
+    {
+        _context.Jobs.Add(job);
+        await _context.SaveChangesAsync(cancellationToken);
+        return job;
+    }
 
     public Task UpdateAsync(Job job, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();

@@ -14,6 +14,7 @@ namespace Nexus.Hub.Api.Tests.Hubs;
 public class NexusHubRegistrationTests : IDisposable
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();
+    private readonly Mock<IJobService> _jobServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
     private readonly Mock<IGroupManager> _groupsMock = new();
     private readonly Mock<IHubCallerClients> _clientsMock = new();
@@ -22,7 +23,7 @@ public class NexusHubRegistrationTests : IDisposable
 
     public NexusHubRegistrationTests()
     {
-        _hub = new NexusHub(_spokeServiceMock.Object, _loggerMock.Object);
+        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _loggerMock.Object);
 
         _clientsMock.Setup(c => c.Caller).Returns(_callerMock.Object);
 

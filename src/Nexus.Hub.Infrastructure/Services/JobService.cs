@@ -12,8 +12,26 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
     private readonly IOutputStreamRepository _outputStreamRepository = outputStreamRepository;
     private readonly ILogger<JobService> _logger = logger;
 
-    public Task<Job> CreateJobAsync(Guid projectId, JobType type, bool requiresApproval = false, JsonDocument? context = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Job> CreateJobAsync(Guid spokeId, Guid projectId, JobType type, bool requiresApproval = false, JsonDocument? context = null, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var job = new Job
+        {
+            Id = Guid.NewGuid(),
+            SpokeId = spokeId,
+            ProjectId = projectId,
+            Type = type,
+            Status = requiresApproval ? JobStatus.AwaitingApproval : JobStatus.Queued,
+            ApprovalRequired = requiresApproval,
+            Summary = context?.RootElement.ToString(),
+            CreatedAt = now
+        };
+
+        await _jobRepository.AddAsync(job, cancellationToken);
+        _logger.LogInformation("Job {JobId} created for spoke {SpokeId} on project {ProjectId} (status: {Status})",
+            job.Id, spokeId, projectId, job.Status);
+        return job;
+    }
 
     public Task<Job?> GetJobAsync(Guid jobId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
