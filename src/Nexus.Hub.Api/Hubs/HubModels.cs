@@ -42,7 +42,7 @@ public record SpokeHeartbeat(
     SpokeStatus Status,
     int ActiveJobCount,
     ResourceUsageDto ResourceUsage,
-    DateTime Timestamp
+    DateTimeOffset Timestamp
 );
 
 public record ResourceUsageDto(

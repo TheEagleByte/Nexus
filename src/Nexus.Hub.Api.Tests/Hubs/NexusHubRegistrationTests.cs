@@ -140,6 +140,49 @@ public class NexusHubRegistrationTests : IDisposable
     }
 
     [Fact]
+    public async Task RegisterSpoke_SpokeNotFound_RegistersNewSpoke()
+    {
+        var spokeId = Guid.NewGuid();
+        var connectionId = $"conn-{Guid.NewGuid()}";
+        var now = DateTimeOffset.UtcNow;
+
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, default))
+            .ThrowsAsync(new Nexus.Hub.Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found"));
+
+        _spokeServiceMock
+            .Setup(s => s.RegisterSpokeAsync(
+                It.IsAny<string>(),
+                It.IsAny<System.Text.Json.JsonDocument>(),
+                It.IsAny<System.Text.Json.JsonDocument>(),
+                It.IsAny<System.Text.Json.JsonDocument?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Spoke
+            {
+                Id = spokeId, Name = "test-spoke", Status = SpokeStatus.Online,
+                Capabilities = System.Text.Json.JsonSerializer.SerializeToDocument(Array.Empty<string>()),
+                Config = System.Text.Json.JsonSerializer.SerializeToDocument(new { }),
+                LastSeen = now, CreatedAt = now, UpdatedAt = now
+            });
+
+        SetupConnectedSpoke(connectionId, spokeId);
+
+        await _hub.RegisterSpoke(CreateRegistration());
+
+        _spokeServiceMock.Verify(s => s.RegisterSpokeAsync(
+            "test-spoke",
+            It.IsAny<System.Text.Json.JsonDocument>(),
+            It.IsAny<System.Text.Json.JsonDocument>(),
+            It.IsAny<System.Text.Json.JsonDocument?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        _callerMock.Verify(c => c.SendCoreAsync(
+            "SpokeRegistered",
+            It.Is<object?[]>(args => args.Length == 1 && ((SpokeInfo)args[0]!).SpokeId == spokeId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Heartbeat_ValidConnection_UpdatesLastSeen()
     {
         var spokeId = Guid.NewGuid();
@@ -150,7 +193,7 @@ public class NexusHubRegistrationTests : IDisposable
         var heartbeat = new SpokeHeartbeat(
             spokeId, SpokeStatus.Online, 2,
             new ResourceUsageDto(1024, 45.5, 50000),
-            DateTime.UtcNow);
+            DateTimeOffset.UtcNow);
 
         await _hub.Heartbeat(heartbeat);
 
@@ -172,7 +215,7 @@ public class NexusHubRegistrationTests : IDisposable
         var heartbeat = new SpokeHeartbeat(
             spokeId, SpokeStatus.Busy, 5,
             new ResourceUsageDto(2048, 90.0, 50000),
-            DateTime.UtcNow);
+            DateTimeOffset.UtcNow);
 
         await _hub.Heartbeat(heartbeat);
 
@@ -192,7 +235,7 @@ public class NexusHubRegistrationTests : IDisposable
         var heartbeat = new SpokeHeartbeat(
             wrongSpokeId, SpokeStatus.Online, 0,
             new ResourceUsageDto(512, 10.0, 20000),
-            DateTime.UtcNow);
+            DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAsync<HubException>(() => _hub.Heartbeat(heartbeat));
     }
@@ -212,7 +255,7 @@ public class NexusHubRegistrationTests : IDisposable
         var heartbeat = new SpokeHeartbeat(
             Guid.NewGuid(), SpokeStatus.Online, 0,
             new ResourceUsageDto(512, 10.0, 20000),
-            DateTime.UtcNow);
+            DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAsync<HubException>(() => _hub.Heartbeat(heartbeat));
     }
@@ -232,7 +275,7 @@ public class NexusHubRegistrationTests : IDisposable
         var heartbeat = new SpokeHeartbeat(
             spokeId, SpokeStatus.Online, 0,
             new ResourceUsageDto(512, 10.0, 20000),
-            DateTime.UtcNow);
+            DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAsync<HubException>(() => _hub.Heartbeat(heartbeat));
     }

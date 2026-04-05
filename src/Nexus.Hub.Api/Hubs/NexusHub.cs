@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Nexus.Hub.Domain.Entities;
+using Nexus.Hub.Domain.Exceptions;
 using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
@@ -103,12 +104,16 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
             ? JsonSerializer.SerializeToDocument(registration.Profile)
             : null;
 
-        var spoke = await _spokeService.GetSpokeAsync(spokeId);
-
-        if (spoke is not null)
+        Spoke? spoke;
+        try
         {
+            spoke = await _spokeService.GetSpokeAsync(spokeId);
             await _spokeService.UpdateSpokeConfigAsync(spokeId, registration.Name, config);
             spoke = await _spokeService.GetSpokeAsync(spokeId);
+        }
+        catch (NotFoundException)
+        {
+            spoke = await _spokeService.RegisterSpokeAsync(registration.Name, capabilities, config, profile);
         }
 
         _logger.LogInformation(
@@ -161,7 +166,7 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         _logger.LogDebug("Heartbeat processed for spoke {SpokeId} (CorrelationId: {CorrelationId})",
             spokeId, correlationId);
 
-        await Clients.Caller.SendAsync("HeartbeatAcknowledged", spokeId, DateTime.UtcNow);
+        await Clients.Caller.SendAsync("HeartbeatAcknowledged", spokeId, DateTimeOffset.UtcNow);
     }
 
     public static Guid? GetSpokeIdByConnection(string connectionId)

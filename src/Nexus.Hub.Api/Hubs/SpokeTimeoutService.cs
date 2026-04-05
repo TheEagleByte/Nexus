@@ -37,10 +37,11 @@ public class SpokeTimeoutService(
 
         var cutoff = DateTimeOffset.UtcNow - TimeoutThreshold;
 
-        var onlineSpokes = await spokeService.ListSpokesAsync(SpokeStatus.Online, limit: 100, cancellationToken: cancellationToken);
-        var busySpokes = await spokeService.ListSpokesAsync(SpokeStatus.Busy, limit: 100, cancellationToken: cancellationToken);
+        var allSpokes = new List<Spoke>();
+        await FetchAllSpokesWithStatusAsync(spokeService, SpokeStatus.Online, allSpokes, cancellationToken);
+        await FetchAllSpokesWithStatusAsync(spokeService, SpokeStatus.Busy, allSpokes, cancellationToken);
 
-        var staleSpokes = onlineSpokes.Concat(busySpokes)
+        var staleSpokes = allSpokes
             .Where(s => s.LastSeen < cutoff)
             .ToList();
 
@@ -58,5 +59,19 @@ public class SpokeTimeoutService(
                 logger.LogError(ex, "Failed to mark spoke {SpokeId} as offline", spoke.Id);
             }
         }
+    }
+
+    private static async Task FetchAllSpokesWithStatusAsync(
+        ISpokeService spokeService, SpokeStatus status, List<Spoke> results, CancellationToken cancellationToken)
+    {
+        const int pageSize = 100;
+        var offset = 0;
+        List<Spoke> batch;
+        do
+        {
+            batch = await spokeService.ListSpokesAsync(status, limit: pageSize, offset: offset, cancellationToken: cancellationToken);
+            results.AddRange(batch);
+            offset += pageSize;
+        } while (batch.Count == pageSize);
     }
 }
