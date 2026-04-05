@@ -5,7 +5,7 @@ namespace Nexus.Hub.Domain.Repositories;
 public interface IMessageRepository
 {
     Task<Message?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<List<Message>> ListBySpokeAsync(Guid spokeId, int limit = 50, int offset = 0, CancellationToken cancellationToken = default);
+    Task<List<Message>> ListBySpokeAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default);
     Task<Message> AddAsync(Message message, CancellationToken cancellationToken = default);
-    Task<int> CountBySpokeAsync(Guid spokeId, CancellationToken cancellationToken = default);
+    Task<int> CountBySpokeAsync(Guid spokeId, Guid? jobId = null, MessageDirection? direction = null, CancellationToken cancellationToken = default);
 }

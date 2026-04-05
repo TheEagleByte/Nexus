@@ -14,12 +14,14 @@ namespace Nexus.Hub.Api.Controllers;
 [Route("api/spokes")]
 public class SpokesController(
     ISpokeService spokeService,
+    IProjectService projectService,
     IMessageService messageService,
     IHubContext<NexusHub> hubContext,
     IConfiguration configuration,
     ILogger<SpokesController> logger) : ControllerBase
 {
     private readonly ISpokeService _spokeService = spokeService;
+    private readonly IProjectService _projectService = projectService;
     private readonly IMessageService _messageService = messageService;
     private readonly IHubContext<NexusHub> _hubContext = hubContext;
     private readonly IConfiguration _configuration = configuration;
@@ -168,9 +170,74 @@ public class SpokesController(
         return Ok(response);
     }
 
+    [HttpGet("{spokeId:guid}/projects")]
+    public async Task<IActionResult> ListProjectsAsync(
+        Guid spokeId,
+        [FromQuery] ProjectStatus? status = null,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        if (limit < 1)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Limit must be at least 1",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        limit = Math.Min(limit, 100);
+
+        var spoke = await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
+
+        var projects = await _projectService.ListProjectsAsync(spokeId, status, limit, offset, cancellationToken);
+        var total = await _projectService.GetProjectCountAsync(spokeId, status, cancellationToken);
+
+        var response = new ProjectListResponse
+        {
+            Projects = projects.Select(p => new ProjectResponse
+            {
+                Id = p.Id,
+                SpokeId = p.SpokeId,
+                ExternalKey = p.ExternalKey,
+                Name = p.Name,
+                Status = p.Status,
+                Summary = p.Summary,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt,
+                SpokeName = spoke!.Name,
+                ActiveJobCount = 0,
+                TotalJobCount = 0
+            }).ToList(),
+            Total = total,
+            Limit = limit,
+            Offset = offset
+        };
+
+        return Ok(response);
+    }
+
     [HttpGet("{id:guid}/conversation")]
     public async Task<IActionResult> GetConversationAsync(
         Guid id,
+        [FromQuery] Guid? jobId = null,
+        [FromQuery] MessageDirection? direction = null,
         [FromQuery] int limit = 50,
         [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
@@ -204,8 +271,8 @@ public class SpokesController(
         // Verify spoke exists
         await _spokeService.GetSpokeAsync(id, cancellationToken);
 
-        var messages = await _messageService.GetConversationAsync(id, limit, offset, cancellationToken);
-        var total = await _messageService.GetMessageCountAsync(id, cancellationToken);
+        var messages = await _messageService.GetConversationAsync(id, jobId, direction, limit, offset, cancellationToken);
+        var total = await _messageService.GetMessageCountAsync(id, jobId, direction, cancellationToken);
 
         var response = new ConversationResponse
         {

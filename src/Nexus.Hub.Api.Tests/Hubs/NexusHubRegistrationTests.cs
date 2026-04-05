@@ -29,7 +29,7 @@ public class NexusHubRegistrationTests : IDisposable
 
         _clientsMock.Setup(c => c.Caller).Returns(_callerMock.Object);
         _jobServiceMock
-            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Job>());
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);

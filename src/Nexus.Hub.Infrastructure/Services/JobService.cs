@@ -44,14 +44,55 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
         return job;
     }
 
-    public Task<List<Job>> ListJobsAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
-        => _jobRepository.ListAsync(spokeId, projectId, status, type, limit, offset, cancellationToken);
+    public Task<List<Job>> ListJobsAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, int limit = 50, int offset = 0, CancellationToken cancellationToken = default)
+        => _jobRepository.ListAsync(spokeId, projectId, status, type, from, to, limit, offset, cancellationToken);
 
-    public Task ApproveJobAsync(Guid jobId, bool approved = true, string? approvedBy = null, JsonDocument? modifications = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task ApproveJobAsync(Guid jobId, bool approved = true, string? approvedBy = null, JsonDocument? modifications = null, CancellationToken cancellationToken = default)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Job {jobId} not found");
 
-    public Task CancelJobAsync(Guid jobId, string? reason = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        if (job.Status != JobStatus.AwaitingApproval)
+            throw new Domain.Exceptions.ValidationException($"Job {jobId} is not awaiting approval (current status: {job.Status})");
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (approved)
+        {
+            job.Status = JobStatus.Queued;
+            job.ApprovedAt = now;
+            job.ApprovedBy = approvedBy;
+            _logger.LogInformation("Job {JobId} approved by {ApprovedBy}", jobId, approvedBy ?? "unknown");
+        }
+        else
+        {
+            job.Status = JobStatus.Cancelled;
+            job.CompletedAt = now;
+            job.Summary = "Rejected" + (modifications is not null ? $": {modifications.RootElement}" : "");
+            _logger.LogInformation("Job {JobId} rejected by {ApprovedBy}", jobId, approvedBy ?? "unknown");
+        }
+
+        await _jobRepository.UpdateAsync(job, cancellationToken);
+    }
+
+    public async Task CancelJobAsync(Guid jobId, string? reason = null, CancellationToken cancellationToken = default)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId, cancellationToken)
+            ?? throw new Domain.Exceptions.NotFoundException($"Job {jobId} not found");
+
+        if (job.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled)
+            throw new Domain.Exceptions.ValidationException($"Job {jobId} is already in terminal state: {job.Status}");
+
+        job.Status = JobStatus.Cancelled;
+        job.CompletedAt = DateTimeOffset.UtcNow;
+        if (reason is not null)
+            job.Summary = string.IsNullOrEmpty(job.Summary)
+                ? reason
+                : $"{job.Summary} | Cancelled: {reason}";
+
+        await _jobRepository.UpdateAsync(job, cancellationToken);
+        _logger.LogInformation("Job {JobId} cancelled. Reason: {Reason}", jobId, reason ?? "none");
+    }
 
     public async Task UpdateJobStatusAsync(Guid jobId, JobStatus status, string? summary = null, CancellationToken cancellationToken = default)
     {
@@ -74,6 +115,12 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
         return await _outputStreamRepository.AddWithAutoSequenceAsync(jobId, content, streamType, cancellationToken);
     }
 
-    public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)
-        => _jobRepository.CountAsync(spokeId, projectId, status, cancellationToken);
+    public Task<List<OutputStream>> GetJobOutputAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
+        => _outputStreamRepository.ListByJobAsync(jobId, limit, offset, cancellationToken);
+
+    public Task<int> GetJobOutputCountAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => _outputStreamRepository.CountByJobAsync(jobId, cancellationToken);
+
+    public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default)
+        => _jobRepository.CountAsync(spokeId, projectId, status, type, from, to, cancellationToken);
 }
