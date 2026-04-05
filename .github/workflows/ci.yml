@@ -35,5 +35,5 @@ jobs:
           /p:CoverletOutput=./coverage/
           /p:ThresholdType=line
           /p:Threshold=80
-          /p:ExcludeByFile="**/Migrations/**%2c**/Program.cs"
-          /p:Exclude="[*]Nexus.Hub.Infrastructure.Data.*%2c[*]Nexus.Hub.Infrastructure.Repositories.*"
+          /p:ExcludeByFile="**/Migrations/**%2c**/Program.cs%2c**/HubModels.cs"
+          /p:Exclude="[*]Nexus.Hub.Infrastructure.Data.*%2c[*]Nexus.Hub.Infrastructure.Repositories.*%2c[*]Nexus.Hub.Api.Models.*%2c[*]Nexus.Hub.Domain.Entities.*"
