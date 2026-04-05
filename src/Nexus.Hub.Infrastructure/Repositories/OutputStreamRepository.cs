@@ -30,7 +30,7 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
         return (max ?? -1) + 1;
     }
 
-    public async Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
+    public async Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
@@ -44,6 +44,7 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
             JobId = jobId,
             Sequence = (max ?? -1) + 1,
             Content = content,
+            StreamType = streamType,
             Timestamp = DateTimeOffset.UtcNow
         };
 

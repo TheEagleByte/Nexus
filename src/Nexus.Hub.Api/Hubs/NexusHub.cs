@@ -218,9 +218,9 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             throw new HubException("SpokeId mismatch.");
         }
 
-        var persisted = await _jobService.RecordJobOutputAsync(chunk.JobId, chunk.Content);
+        var persisted = await _jobService.RecordJobOutputAsync(chunk.JobId, chunk.Content, chunk.StreamType);
 
-        var broadcastChunk = new JobOutputChunk(chunk.JobId, chunk.SpokeId, persisted.Sequence, persisted.Content, chunk.StreamType, persisted.Timestamp);
+        var broadcastChunk = new JobOutputChunk(chunk.JobId, chunk.SpokeId, persisted.Sequence, persisted.Content, persisted.StreamType, persisted.Timestamp);
         await Clients.All.SendAsync("JobOutputReceived", broadcastChunk);
 
         _logger.LogDebug("Job {JobId} output chunk {Sequence} received (spoke: {SpokeId}, CorrelationId: {CorrelationId})",

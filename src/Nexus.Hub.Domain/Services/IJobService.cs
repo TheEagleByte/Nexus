@@ -11,6 +11,6 @@ public interface IJobService
     Task ApproveJobAsync(Guid jobId, bool approved = true, string? approvedBy = null, JsonDocument? modifications = null, CancellationToken cancellationToken = default);
     Task CancelJobAsync(Guid jobId, string? reason = null, CancellationToken cancellationToken = default);
     Task UpdateJobStatusAsync(Guid jobId, JobStatus status, string? summary = null, CancellationToken cancellationToken = default);
-    Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default);
+    Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default);
     Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default);
 }

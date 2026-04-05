@@ -61,9 +61,9 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
         _logger.LogInformation("Job {JobId} status updated to {Status}", jobId, status);
     }
 
-    public async Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
+    public async Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default)
     {
-        return await _outputStreamRepository.AddWithAutoSequenceAsync(jobId, content, cancellationToken);
+        return await _outputStreamRepository.AddWithAutoSequenceAsync(jobId, content, streamType, cancellationToken);
     }
 
     public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)

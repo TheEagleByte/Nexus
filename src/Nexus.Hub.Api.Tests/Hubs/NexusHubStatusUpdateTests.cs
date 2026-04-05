@@ -138,12 +138,12 @@ public class NexusHubStatusUpdateTests : IDisposable
         };
 
         _jobServiceMock
-            .Setup(s => s.RecordJobOutputAsync(jobId, "Building project...", default))
+            .Setup(s => s.RecordJobOutputAsync(jobId, "Building project...", "stdout", default))
             .ReturnsAsync(persistedOutput);
 
         await _hub.StreamJobOutput(chunk);
 
-        _jobServiceMock.Verify(s => s.RecordJobOutputAsync(jobId, "Building project...", default), Times.Once);
+        _jobServiceMock.Verify(s => s.RecordJobOutputAsync(jobId, "Building project...", "stdout", default), Times.Once);
         _allClientsMock.Verify(c => c.SendCoreAsync("JobOutputReceived",
             It.Is<object?[]>(args => args.Length == 1 && ((JobOutputChunk)args[0]!).JobId == jobId),
             It.IsAny<CancellationToken>()), Times.Once);
