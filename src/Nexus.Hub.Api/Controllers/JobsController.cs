@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.SignalR;
 using Nexus.Hub.Api.Hubs;
 using Nexus.Hub.Api.Models;
@@ -89,7 +90,7 @@ public class JobsController(
     }
 
     [HttpPost("{id:guid}/cancel")]
-    public async Task<IActionResult> CancelAsync(Guid id, [FromBody] CancelJobRequest? request = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> CancelAsync(Guid id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CancelJobRequest? request = null, CancellationToken cancellationToken = default)
     {
         var job = await _jobService.GetJobAsync(id, cancellationToken);
         if (job is null)
@@ -101,7 +102,7 @@ public class JobsController(
 
         try
         {
-            await _hubContext.Clients.Group($"spoke-{spokeId}").SendAsync("JobCancelled", new { JobId = id, Reason = request?.Reason }, cancellationToken);
+            await _hubContext.Clients.Group($"spoke-{spokeId}").SendAsync("JobCancelled", new { JobId = id, Reason = request?.Reason }, CancellationToken.None);
         }
         catch (Exception ex)
         {
