@@ -10,7 +10,7 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Tests.Hubs;
 
-public class NexusHubTests
+public class NexusHubTests : IDisposable
 {
     private readonly Mock<ISpokeService> _spokeServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
@@ -23,6 +23,12 @@ public class NexusHubTests
 
         var hubType = typeof(Microsoft.AspNetCore.SignalR.Hub);
         hubType.GetProperty("Groups")!.SetValue(_hub, _groupsMock.Object);
+    }
+
+    public void Dispose()
+    {
+        NexusHub.ClearConnectionsForTesting();
+        GC.SuppressFinalize(this);
     }
 
     private void SetupContext(string connectionId, Guid? spokeId)
@@ -187,6 +193,29 @@ public class NexusHubTests
         await _hub.OnDisconnectedAsync(error);
 
         _spokeServiceMock.Verify(s => s.UpdateSpokeStatusAsync(It.IsAny<Guid>(), It.IsAny<SpokeStatus>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task OnConnectedAsync_StatusUpdateFails_RollsBackAndAborts()
+    {
+        var spokeId = Guid.NewGuid();
+        var connectionId = $"conn-{Guid.NewGuid()}";
+        SetupContext(connectionId, spokeId);
+
+        _groupsMock
+            .Setup(g => g.AddToGroupAsync(connectionId, $"spoke-{spokeId}", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _groupsMock
+            .Setup(g => g.RemoveFromGroupAsync(connectionId, $"spoke-{spokeId}", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _spokeServiceMock
+            .Setup(s => s.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online, default))
+            .ThrowsAsync(new Exception("DB down"));
+
+        await _hub.OnConnectedAsync();
+
+        Assert.Null(NexusHub.GetSpokeIdByConnection(connectionId));
+        _groupsMock.Verify(g => g.RemoveFromGroupAsync(connectionId, $"spoke-{spokeId}", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -27,7 +27,19 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         ConnectionToSpokeMap[Context.ConnectionId] = spokeId;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, $"spoke-{spokeId}");
-        await _spokeService.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online);
+
+        try
+        {
+            await _spokeService.UpdateSpokeStatusAsync(spokeId, SpokeStatus.Online);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update spoke {SpokeId} status on connect; rolling back", spokeId);
+            ConnectionToSpokeMap.TryRemove(Context.ConnectionId, out _);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spoke-{spokeId}");
+            Context.Abort();
+            return;
+        }
 
         _logger.LogInformation("Spoke {SpokeId} connected (connection {ConnectionId})", spokeId, Context.ConnectionId);
 
@@ -68,4 +80,6 @@ public class NexusHub(ISpokeService spokeService, ILogger<NexusHub> logger) : Mi
         => ConnectionToSpokeMap.TryGetValue(connectionId, out var spokeId) ? spokeId : null;
 
     public static IReadOnlyDictionary<string, Guid> GetActiveConnections() => ConnectionToSpokeMap;
+
+    internal static void ClearConnectionsForTesting() => ConnectionToSpokeMap.Clear();
 }
