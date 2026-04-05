@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Hub.Api.Models;
@@ -27,8 +29,16 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
                 }
             });
 
-        var expectedPsk = _configuration["Spoke:PreSharedKey"];
-        if (string.IsNullOrEmpty(expectedPsk) || request.Psk != expectedPsk)
+        var expectedPsk = _configuration["Spoke:PreSharedKey"] ?? string.Empty;
+        var providedPsk = request.Psk ?? string.Empty;
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedPsk);
+        var providedBytes = Encoding.UTF8.GetBytes(providedPsk);
+        var isPskValid =
+            expectedBytes.Length > 0 &&
+            expectedBytes.Length == providedBytes.Length &&
+            CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes);
+
+        if (!isPskValid)
             return Unauthorized(new ErrorResponse
             {
                 Error = new ErrorDetail
