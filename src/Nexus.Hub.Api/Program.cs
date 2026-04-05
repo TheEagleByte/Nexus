@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Nexus.Hub.Api.Middleware;
+using Nexus.Hub.Infrastructure;
 using Nexus.Hub.Infrastructure.Data;
 using Serilog;
 
@@ -28,6 +30,8 @@ try
     builder.Services.AddDbContext<NexusDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+    builder.Services.AddInfrastructure();
+
     builder.Services.AddSignalR();
 
     builder.Services.AddCors(options =>
@@ -39,6 +43,10 @@ try
                   .AllowCredentials());
     });
 
+    // Authentication stub - Google OAuth will be configured in a future ticket
+    builder.Services.AddAuthentication();
+    builder.Services.AddAuthorization();
+
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
@@ -47,9 +55,13 @@ try
         db.Database.Migrate();
     }
 
+    app.UseMiddleware<ExceptionMiddleware>();
+    app.UseMiddleware<RequestLoggingMiddleware>();
     app.UseSerilogRequestLogging();
     app.UseRouting();
     app.UseCors("LocalOnly");
+    app.UseAuthentication();
+    app.UseAuthorization();
     app.MapControllers();
     // app.MapHub<NexusHub>("/api/hub"); // Uncomment when NexusHub is implemented
 
