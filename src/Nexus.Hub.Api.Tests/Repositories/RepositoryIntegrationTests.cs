@@ -403,43 +403,218 @@ public class RepositoryIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task ProjectRepository_ListBySpokeAsync_ThrowsNotImplementedException()
+    public async Task ProjectRepository_AddAndGetById_RoundTrips()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.ListBySpokeAsync(Guid.NewGuid()));
+        var project = CreateProject(spoke.Id);
+        project.ExternalKey = "JIRA-123";
+        await repo.AddAsync(project);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(project.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal("test-project", loaded.Name);
+        Assert.Equal("JIRA-123", loaded.ExternalKey);
     }
 
     [Fact]
-    public async Task ProjectRepository_ListAsync_ThrowsNotImplementedException()
+    public async Task ProjectRepository_ListBySpokeAsync_ReturnsFilteredProjects()
     {
         using var ctx = _factory.CreateContext();
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        await ctx.SaveChangesAsync();
+
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.ListAsync());
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke2.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var projects = await repo2.ListBySpokeAsync(spoke1.Id);
+
+        Assert.Equal(2, projects.Count);
+        Assert.All(projects, p => Assert.Equal(spoke1.Id, p.SpokeId));
     }
 
     [Fact]
-    public async Task ProjectRepository_AddAsync_ThrowsNotImplementedException()
+    public async Task ProjectRepository_ListBySpokeAsync_FiltersByStatus()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.AddAsync(new Project()));
+        var active = CreateProject(spoke.Id);
+        active.Status = ProjectStatus.Active;
+        await repo.AddAsync(active);
+        var completed = CreateProject(spoke.Id);
+        completed.Status = ProjectStatus.Completed;
+        await repo.AddAsync(completed);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var activeOnly = await repo2.ListBySpokeAsync(spoke.Id, status: ProjectStatus.Active);
+
+        Assert.Single(activeOnly);
+        Assert.Equal(ProjectStatus.Active, activeOnly[0].Status);
     }
 
     [Fact]
-    public async Task ProjectRepository_GetBySpokeAndExternalKeyAsync_ThrowsNotImplementedException()
+    public async Task ProjectRepository_ListAsync_ReturnsAll()
     {
         using var ctx = _factory.CreateContext();
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        await ctx.SaveChangesAsync();
+
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.GetBySpokeAndExternalKeyAsync(Guid.NewGuid(), "key"));
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke2.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var all = await repo2.ListAsync();
+
+        Assert.Equal(2, all.Count);
     }
 
     [Fact]
-    public async Task ProjectRepository_CountAsync_ThrowsNotImplementedException()
+    public async Task ProjectRepository_ListAsync_FiltersBySpokeAndStatus()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        await ctx.SaveChangesAsync();
+
+        var repo = new ProjectRepository(ctx);
+        var p1 = CreateProject(spoke1.Id);
+        p1.Status = ProjectStatus.Active;
+        await repo.AddAsync(p1);
+        var p2 = CreateProject(spoke1.Id);
+        p2.Status = ProjectStatus.Completed;
+        await repo.AddAsync(p2);
+        await repo.AddAsync(CreateProject(spoke2.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var filtered = await repo2.ListAsync(spokeId: spoke1.Id, status: ProjectStatus.Active);
+
+        Assert.Single(filtered);
+        Assert.Equal(spoke1.Id, filtered[0].SpokeId);
+        Assert.Equal(ProjectStatus.Active, filtered[0].Status);
+    }
+
+    [Fact]
+    public async Task ProjectRepository_ListAsync_RespectsLimitAndOffset()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new ProjectRepository(ctx);
+        for (int i = 0; i < 5; i++)
+        {
+            var p = CreateProject(spoke.Id);
+            p.Name = $"project-{i}";
+            p.CreatedAt = DateTimeOffset.UtcNow.AddMinutes(i);
+            await repo.AddAsync(p);
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var page = await repo2.ListAsync(limit: 2, offset: 1);
+
+        Assert.Equal(2, page.Count);
+    }
+
+    [Fact]
+    public async Task ProjectRepository_GetBySpokeAndExternalKeyAsync_ReturnsMatch()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new ProjectRepository(ctx);
+        var project = CreateProject(spoke.Id);
+        project.ExternalKey = "EXT-42";
+        await repo.AddAsync(project);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var loaded = await repo2.GetBySpokeAndExternalKeyAsync(spoke.Id, "EXT-42");
+
+        Assert.NotNull(loaded);
+        Assert.Equal(project.Id, loaded.Id);
+    }
+
+    [Fact]
+    public async Task ProjectRepository_GetBySpokeAndExternalKeyAsync_ReturnsNullForMissing()
     {
         using var ctx = _factory.CreateContext();
         var repo = new ProjectRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.CountAsync());
+
+        var result = await repo.GetBySpokeAndExternalKeyAsync(Guid.NewGuid(), "nonexistent");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ProjectRepository_CountAsync_ReturnsCorrectCount()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke1 = CreateSpoke();
+        var spoke2 = CreateSpoke();
+        ctx.Spokes.AddRange(spoke1, spoke2);
+        await ctx.SaveChangesAsync();
+
+        var repo = new ProjectRepository(ctx);
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke1.Id));
+        await repo.AddAsync(CreateProject(spoke2.Id));
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var count = await repo2.CountAsync(spokeId: spoke1.Id);
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task ProjectRepository_CountAsync_FiltersByStatus()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        await ctx.SaveChangesAsync();
+
+        var repo = new ProjectRepository(ctx);
+        var active = CreateProject(spoke.Id);
+        active.Status = ProjectStatus.Active;
+        await repo.AddAsync(active);
+        var completed = CreateProject(spoke.Id);
+        completed.Status = ProjectStatus.Completed;
+        await repo.AddAsync(completed);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var count = await repo2.CountAsync(status: ProjectStatus.Active);
+
+        Assert.Equal(1, count);
     }
 
     // ==========================================================================
@@ -701,18 +876,137 @@ public class RepositoryIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task OutputStreamRepository_ListByJobAsync_ThrowsNotImplementedException()
+    public async Task OutputStreamRepository_ListByJobAsync_ReturnsOrderedBySequence()
     {
         using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        var project = CreateProject(spoke.Id);
+        ctx.Projects.Add(project);
+        var job = CreateJob(project.Id, spoke.Id);
+        ctx.Jobs.Add(job);
+        await ctx.SaveChangesAsync();
+
         var repo = new OutputStreamRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.ListByJobAsync(Guid.NewGuid()));
+        for (int i = 2; i >= 0; i--)
+        {
+            var stream = new OutputStream
+            {
+                Id = Guid.NewGuid(),
+                JobId = job.Id,
+                Sequence = i,
+                Content = $"line-{i}",
+                StreamType = "stdout",
+                Timestamp = DateTimeOffset.UtcNow
+            };
+            await repo.AddAsync(stream);
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new OutputStreamRepository(ctx2);
+        var list = await repo2.ListByJobAsync(job.Id);
+
+        Assert.Equal(3, list.Count);
+        Assert.Equal(0, list[0].Sequence);
+        Assert.Equal(1, list[1].Sequence);
+        Assert.Equal(2, list[2].Sequence);
     }
 
     [Fact]
-    public async Task OutputStreamRepository_CountByJobAsync_ThrowsNotImplementedException()
+    public async Task OutputStreamRepository_ListByJobAsync_RespectsLimitAndOffset()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        var project = CreateProject(spoke.Id);
+        ctx.Projects.Add(project);
+        var job = CreateJob(project.Id, spoke.Id);
+        ctx.Jobs.Add(job);
+        await ctx.SaveChangesAsync();
+
+        var repo = new OutputStreamRepository(ctx);
+        for (int i = 0; i < 5; i++)
+        {
+            var stream = new OutputStream
+            {
+                Id = Guid.NewGuid(),
+                JobId = job.Id,
+                Sequence = i,
+                Content = $"line-{i}",
+                StreamType = "stdout",
+                Timestamp = DateTimeOffset.UtcNow
+            };
+            await repo.AddAsync(stream);
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new OutputStreamRepository(ctx2);
+        var page = await repo2.ListByJobAsync(job.Id, limit: 2, offset: 1);
+
+        Assert.Equal(2, page.Count);
+        Assert.Equal(1, page[0].Sequence);
+        Assert.Equal(2, page[1].Sequence);
+    }
+
+    [Fact]
+    public async Task OutputStreamRepository_ListByJobAsync_FiltersToCorrectJob()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        var project = CreateProject(spoke.Id);
+        ctx.Projects.Add(project);
+        var job1 = CreateJob(project.Id, spoke.Id);
+        var job2 = CreateJob(project.Id, spoke.Id);
+        ctx.Jobs.AddRange(job1, job2);
+        await ctx.SaveChangesAsync();
+
+        var repo = new OutputStreamRepository(ctx);
+        await repo.AddAsync(new OutputStream { Id = Guid.NewGuid(), JobId = job1.Id, Sequence = 0, Content = "j1", StreamType = "stdout", Timestamp = DateTimeOffset.UtcNow });
+        await repo.AddAsync(new OutputStream { Id = Guid.NewGuid(), JobId = job1.Id, Sequence = 1, Content = "j1", StreamType = "stdout", Timestamp = DateTimeOffset.UtcNow });
+        await repo.AddAsync(new OutputStream { Id = Guid.NewGuid(), JobId = job2.Id, Sequence = 0, Content = "j2", StreamType = "stdout", Timestamp = DateTimeOffset.UtcNow });
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new OutputStreamRepository(ctx2);
+        var list = await repo2.ListByJobAsync(job1.Id);
+
+        Assert.Equal(2, list.Count);
+        Assert.All(list, o => Assert.Equal(job1.Id, o.JobId));
+    }
+
+    [Fact]
+    public async Task OutputStreamRepository_CountByJobAsync_ReturnsCorrectCount()
+    {
+        using var ctx = _factory.CreateContext();
+        var spoke = CreateSpoke();
+        ctx.Spokes.Add(spoke);
+        var project = CreateProject(spoke.Id);
+        ctx.Projects.Add(project);
+        var job = CreateJob(project.Id, spoke.Id);
+        ctx.Jobs.Add(job);
+        await ctx.SaveChangesAsync();
+
+        var repo = new OutputStreamRepository(ctx);
+        for (int i = 0; i < 3; i++)
+        {
+            await repo.AddAsync(new OutputStream { Id = Guid.NewGuid(), JobId = job.Id, Sequence = i, Content = $"line-{i}", StreamType = "stdout", Timestamp = DateTimeOffset.UtcNow });
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new OutputStreamRepository(ctx2);
+        var count = await repo2.CountByJobAsync(job.Id);
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task OutputStreamRepository_CountByJobAsync_ReturnsZeroForEmpty()
     {
         using var ctx = _factory.CreateContext();
         var repo = new OutputStreamRepository(ctx);
-        await Assert.ThrowsAsync<NotImplementedException>(() => repo.CountByJobAsync(Guid.NewGuid()));
+
+        var count = await repo.CountByJobAsync(Guid.NewGuid());
+
+        Assert.Equal(0, count);
     }
 }

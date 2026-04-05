@@ -9,8 +9,14 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
 {
     private readonly NexusDbContext _context = context;
 
-    public Task<List<OutputStream>> ListByJobAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<List<OutputStream>> ListByJobAsync(Guid jobId, int limit = 100, int offset = 0, CancellationToken cancellationToken = default)
+        => await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .OrderBy(o => o.Sequence)
+            .ThenBy(o => o.Id)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
 
     public async Task<OutputStream> AddAsync(OutputStream outputStream, CancellationToken cancellationToken = default)
     {
@@ -19,8 +25,8 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
         return outputStream;
     }
 
-    public Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<int> CountByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => await _context.OutputStreams.Where(o => o.JobId == jobId).CountAsync(cancellationToken);
 
     public async Task<long> GetNextSequenceAsync(Guid jobId, CancellationToken cancellationToken = default)
     {
@@ -32,26 +38,30 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
 
     public async Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, string streamType = "stdout", CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-        var max = await _context.OutputStreams
-            .Where(o => o.JobId == jobId)
-            .MaxAsync(o => (long?)o.Sequence, cancellationToken);
-
-        var outputStream = new OutputStream
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            Id = Guid.NewGuid(),
-            JobId = jobId,
-            Sequence = (max ?? -1) + 1,
-            Content = content,
-            StreamType = streamType,
-            Timestamp = DateTimeOffset.UtcNow
-        };
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        _context.OutputStreams.Add(outputStream);
-        await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            var max = await _context.OutputStreams
+                .Where(o => o.JobId == jobId)
+                .MaxAsync(o => (long?)o.Sequence, cancellationToken);
 
-        return outputStream;
+            var outputStream = new OutputStream
+            {
+                Id = Guid.NewGuid(),
+                JobId = jobId,
+                Sequence = (max ?? -1) + 1,
+                Content = content,
+                StreamType = streamType,
+                Timestamp = DateTimeOffset.UtcNow
+            };
+
+            _context.OutputStreams.Add(outputStream);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return outputStream;
+        });
     }
 }

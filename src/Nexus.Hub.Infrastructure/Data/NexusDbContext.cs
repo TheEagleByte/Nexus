@@ -123,6 +123,7 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
         {
             entity.HasKey(o => o.Id);
             entity.Property(o => o.Content).IsRequired();
+            entity.Property(o => o.StreamType).HasMaxLength(50).HasDefaultValue("stdout").IsRequired();
 
             entity.HasIndex(o => new { o.JobId, o.Sequence }).IsUnique();
         });
