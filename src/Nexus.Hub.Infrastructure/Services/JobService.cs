@@ -55,25 +55,15 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
 
         if (summary is not null) job.Summary = summary;
         if (status == JobStatus.Running && job.StartedAt is null) job.StartedAt = now;
-        if (status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled) job.CompletedAt = now;
+        if (status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled && job.CompletedAt is null) job.CompletedAt = now;
 
         await _jobRepository.UpdateAsync(job, cancellationToken);
         _logger.LogInformation("Job {JobId} status updated to {Status}", jobId, status);
     }
 
-    public async Task RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
+    public async Task<OutputStream> RecordJobOutputAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
     {
-        var sequence = await _outputStreamRepository.GetNextSequenceAsync(jobId, cancellationToken);
-        var outputStream = new OutputStream
-        {
-            Id = Guid.NewGuid(),
-            JobId = jobId,
-            Sequence = sequence,
-            Content = content,
-            Timestamp = DateTimeOffset.UtcNow
-        };
-
-        await _outputStreamRepository.AddAsync(outputStream, cancellationToken);
+        return await _outputStreamRepository.AddWithAutoSequenceAsync(jobId, content, cancellationToken);
     }
 
     public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, CancellationToken cancellationToken = default)

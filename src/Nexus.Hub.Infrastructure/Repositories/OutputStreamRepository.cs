@@ -29,4 +29,28 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
             .MaxAsync(o => (long?)o.Sequence, cancellationToken);
         return (max ?? -1) + 1;
     }
+
+    public async Task<OutputStream> AddWithAutoSequenceAsync(Guid jobId, string content, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        var max = await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .MaxAsync(o => (long?)o.Sequence, cancellationToken);
+
+        var outputStream = new OutputStream
+        {
+            Id = Guid.NewGuid(),
+            JobId = jobId,
+            Sequence = (max ?? -1) + 1,
+            Content = content,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        _context.OutputStreams.Add(outputStream);
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return outputStream;
+    }
 }

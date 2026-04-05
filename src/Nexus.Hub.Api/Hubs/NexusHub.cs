@@ -184,6 +184,13 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             throw new HubException("Connection not established.");
         }
 
+        if (evt.SpokeId != spokeId)
+        {
+            _logger.LogWarning("ReportJobStatusChanged spokeId mismatch: mapped {MappedSpokeId}, event claims {EventSpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, evt.SpokeId, correlationId);
+            throw new HubException("SpokeId mismatch.");
+        }
+
         await _jobService.UpdateJobStatusAsync(evt.JobId, evt.NewStatus, evt.Summary);
 
         await Clients.All.SendAsync("JobStatusChanged", evt);
@@ -204,9 +211,17 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
             throw new HubException("Connection not established.");
         }
 
-        await _jobService.RecordJobOutputAsync(chunk.JobId, chunk.Content);
+        if (chunk.SpokeId != spokeId)
+        {
+            _logger.LogWarning("StreamJobOutput spokeId mismatch: mapped {MappedSpokeId}, chunk claims {ChunkSpokeId} (CorrelationId: {CorrelationId})",
+                spokeId, chunk.SpokeId, correlationId);
+            throw new HubException("SpokeId mismatch.");
+        }
 
-        await Clients.All.SendAsync("JobOutputReceived", chunk);
+        var persisted = await _jobService.RecordJobOutputAsync(chunk.JobId, chunk.Content);
+
+        var broadcastChunk = new JobOutputChunk(chunk.JobId, chunk.SpokeId, persisted.Sequence, persisted.Content, chunk.StreamType, persisted.Timestamp);
+        await Clients.All.SendAsync("JobOutputReceived", broadcastChunk);
 
         _logger.LogDebug("Job {JobId} output chunk {Sequence} received (spoke: {SpokeId}, CorrelationId: {CorrelationId})",
             chunk.JobId, chunk.Sequence, spokeId, correlationId);

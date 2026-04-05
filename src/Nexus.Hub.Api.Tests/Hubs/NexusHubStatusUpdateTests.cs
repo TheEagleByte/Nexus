@@ -123,15 +123,29 @@ public class NexusHubStatusUpdateTests : IDisposable
         var connectionId = $"conn-{Guid.NewGuid()}";
         SetupConnectedSpoke(connectionId, spokeId);
 
+        var jobId = Guid.NewGuid();
         var chunk = new JobOutputChunk(
-            Guid.NewGuid(), spokeId, 0,
+            jobId, spokeId, 0,
             "Building project...", "stdout", DateTimeOffset.UtcNow);
+
+        var persistedOutput = new Nexus.Hub.Domain.Entities.OutputStream
+        {
+            Id = Guid.NewGuid(),
+            JobId = jobId,
+            Sequence = 0,
+            Content = "Building project...",
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        _jobServiceMock
+            .Setup(s => s.RecordJobOutputAsync(jobId, "Building project...", default))
+            .ReturnsAsync(persistedOutput);
 
         await _hub.StreamJobOutput(chunk);
 
-        _jobServiceMock.Verify(s => s.RecordJobOutputAsync(chunk.JobId, "Building project...", default), Times.Once);
+        _jobServiceMock.Verify(s => s.RecordJobOutputAsync(jobId, "Building project...", default), Times.Once);
         _allClientsMock.Verify(c => c.SendCoreAsync("JobOutputReceived",
-            It.Is<object?[]>(args => args.Length == 1 && ((JobOutputChunk)args[0]!).JobId == chunk.JobId),
+            It.Is<object?[]>(args => args.Length == 1 && ((JobOutputChunk)args[0]!).JobId == jobId),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
