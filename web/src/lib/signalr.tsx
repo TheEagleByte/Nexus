@@ -64,7 +64,8 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
         const existing = next.get(id);
         if (existing) {
           next.set(id, { ...existing, ...updates });
-        } else {
+        } else if ("name" in updates && "capabilities" in updates) {
+          // Only insert if we have a complete spoke object
           next.set(id, updates as SpokeResponse);
         }
         return next;
@@ -94,22 +95,22 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
 
     connection.on(
       "HeartbeatAcknowledged",
-      (data: { spokeId: string; timestamp: string }) => {
-        updateSpoke(data.spokeId, {
+      (spokeId: string, timestamp: string) => {
+        updateSpoke(spokeId, {
           status: "online",
-          lastSeen: data.timestamp,
+          lastSeen: timestamp,
         });
       }
     );
 
     connection.on(
       "JobStatusChanged",
-      (data: { spokeId: string; jobId: string; status: string }) => {
+      (data: { spokeId: string; jobId: string; newStatus: string; previousStatus: string }) => {
         // Update spoke's active job count when jobs complete/fail
         if (
-          data.status === "completed" ||
-          data.status === "failed" ||
-          data.status === "cancelled"
+          data.newStatus === "completed" ||
+          data.newStatus === "failed" ||
+          data.newStatus === "cancelled"
         ) {
           setSpokes((prev) => {
             const next = new Map(prev);

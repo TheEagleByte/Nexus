@@ -22,12 +22,19 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         var httpContext = Context.GetHttpContext();
         var spokeIdRaw = httpContext?.Request.Query["spokeId"].FirstOrDefault();
 
-        if (!Guid.TryParse(spokeIdRaw, out var spokeId))
+        if (string.IsNullOrWhiteSpace(spokeIdRaw))
         {
             // Dashboard/viewer connection — no spokeId required
             await Groups.AddToGroupAsync(Context.ConnectionId, "dashboard");
             _logger.LogInformation("Dashboard client connected (connection {ConnectionId})", Context.ConnectionId);
             await base.OnConnectedAsync();
+            return;
+        }
+
+        if (!Guid.TryParse(spokeIdRaw, out var spokeId))
+        {
+            _logger.LogWarning("Connection {ConnectionId} rejected: malformed spokeId '{SpokeIdRaw}'", Context.ConnectionId, spokeIdRaw);
+            Context.Abort();
             return;
         }
 
@@ -77,9 +84,17 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         }
         else
         {
-            // Dashboard/viewer client disconnected
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "dashboard");
-            _logger.LogInformation("Dashboard client disconnected (connection {ConnectionId})", Context.ConnectionId);
+            var rawSpokeId = Context.GetHttpContext()?.Request.Query["spokeId"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(rawSpokeId))
+            {
+                // Dashboard/viewer client disconnected
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, "dashboard");
+                _logger.LogInformation("Dashboard client disconnected (connection {ConnectionId})", Context.ConnectionId);
+            }
+            else
+            {
+                _logger.LogWarning("Unmapped disconnect for connection {ConnectionId} with spokeId '{SpokeIdRaw}'", Context.ConnectionId, rawSpokeId);
+            }
         }
 
         if (exception is not null)
