@@ -11,8 +11,26 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
     private readonly ISpokeRepository _spokeRepository = spokeRepository;
     private readonly ILogger<SpokeService> _logger = logger;
 
-    public Task<Spoke> RegisterSpokeAsync(string name, JsonDocument capabilities, JsonDocument config, JsonDocument? profile = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    public async Task<Spoke> RegisterSpokeAsync(string name, JsonDocument capabilities, JsonDocument config, JsonDocument? profile = null, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var spoke = new Spoke
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Status = SpokeStatus.Online,
+            Capabilities = capabilities,
+            Config = config,
+            Profile = profile,
+            LastSeen = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await _spokeRepository.AddAsync(spoke, cancellationToken);
+        _logger.LogInformation("Spoke registered: {SpokeId} ({SpokeName})", spoke.Id, spoke.Name);
+        return spoke;
+    }
 
     public Task<Spoke?> GetSpokeAsync(Guid spokeId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
