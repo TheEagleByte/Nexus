@@ -5,7 +5,7 @@ using Nexus.Hub.Infrastructure.Repositories;
 
 namespace Nexus.Hub.Api.Tests.Repositories;
 
-public class RepositoryStubTests : IDisposable
+public class RepositoryIntegrationTests : IDisposable
 {
     private readonly TestDbContextFactory _factory = new();
 
@@ -55,9 +55,11 @@ public class RepositoryStubTests : IDisposable
         using var ctx = _factory.CreateContext();
         var repo = new SpokeRepository(ctx);
         var spoke = CreateSpoke();
-
         await repo.AddAsync(spoke);
-        var loaded = await repo.GetByIdAsync(spoke.Id);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new SpokeRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(spoke.Id);
 
         Assert.NotNull(loaded);
         Assert.Equal(spoke.Name, loaded.Name);
@@ -194,7 +196,9 @@ public class RepositoryStubTests : IDisposable
         var job = CreateJob(project.Id, spoke.Id);
         await repo.AddAsync(job);
 
-        var loaded = await repo.GetByIdAsync(job.Id);
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new JobRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(job.Id);
         Assert.NotNull(loaded);
         Assert.Equal(JobType.Implement, loaded.Type);
         Assert.Equal(JobStatus.Queued, loaded.Status);
@@ -275,7 +279,9 @@ public class RepositoryStubTests : IDisposable
         ctx.Projects.Add(project);
         await ctx.SaveChangesAsync();
 
-        var loaded = await repo.GetByIdAsync(project.Id);
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ProjectRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(project.Id);
         Assert.NotNull(loaded);
         Assert.Equal("test-project", loaded.Name);
     }
