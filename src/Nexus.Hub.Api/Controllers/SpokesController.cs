@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Nexus.Hub.Api.Models;
+using Nexus.Hub.Domain.Entities;
 using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Controllers;
@@ -80,5 +81,54 @@ public class SpokesController(ISpokeService spokeService, IConfiguration configu
         };
 
         return Created($"/api/spokes/{spoke.Id}", response);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ListAsync(
+        [FromQuery] SpokeStatus? status,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var spokes = await _spokeService.ListSpokesAsync(status, limit, offset, cancellationToken);
+        var total = await _spokeService.GetSpokeCountAsync(status, cancellationToken);
+
+        var response = new SpokeListResponse
+        {
+            Spokes = spokes.Select(s => new SpokeResponse
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Status = s.Status,
+                LastSeen = s.LastSeen,
+                Capabilities = s.Capabilities,
+                Config = s.Config
+            }).ToList(),
+            Total = total,
+            Limit = limit,
+            Offset = offset
+        };
+
+        return Ok(response);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var spoke = await _spokeService.GetSpokeAsync(id, cancellationToken);
+
+        var response = new SpokeDetailResponse
+        {
+            Id = spoke!.Id,
+            Name = spoke.Name,
+            Status = spoke.Status,
+            LastSeen = spoke.LastSeen,
+            Capabilities = spoke.Capabilities,
+            Config = spoke.Config,
+            Profile = spoke.Profile,
+            RegisteredAt = spoke.CreatedAt
+        };
+
+        return Ok(response);
     }
 }

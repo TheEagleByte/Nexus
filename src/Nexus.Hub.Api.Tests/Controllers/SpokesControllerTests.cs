@@ -203,4 +203,114 @@ public class SpokesControllerTests
             null,
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ListAsync_ReturnsSpokesWithPagination()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var capabilities = JsonSerializer.SerializeToDocument(new[] { "code" });
+        var config = JsonSerializer.SerializeToDocument(new { });
+
+        var spokes = new List<Spoke>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(), Name = "spoke-1", Status = SpokeStatus.Online,
+                Capabilities = capabilities, Config = config,
+                LastSeen = now, CreatedAt = now, UpdatedAt = now
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), Name = "spoke-2", Status = SpokeStatus.Offline,
+                Capabilities = capabilities, Config = config,
+                LastSeen = now, CreatedAt = now, UpdatedAt = now
+            }
+        };
+
+        _spokeServiceMock
+            .Setup(s => s.ListSpokesAsync(null, 50, 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(spokes);
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeCountAsync(null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        var result = await _controller.ListAsync(null, 50, 0, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<SpokeListResponse>(okResult.Value);
+        Assert.Equal(2, response.Spokes.Count);
+        Assert.Equal(2, response.Total);
+        Assert.Equal(50, response.Limit);
+        Assert.Equal(0, response.Offset);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithStatusFilter_PassesStatusToService()
+    {
+        _spokeServiceMock
+            .Setup(s => s.ListSpokesAsync(SpokeStatus.Online, 10, 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeCountAsync(SpokeStatus.Online, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        var result = await _controller.ListAsync(SpokeStatus.Online, 10, 5, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<SpokeListResponse>(okResult.Value);
+        Assert.Empty(response.Spokes);
+        Assert.Equal(0, response.Total);
+        Assert.Equal(10, response.Limit);
+        Assert.Equal(5, response.Offset);
+
+        _spokeServiceMock.Verify(s => s.ListSpokesAsync(SpokeStatus.Online, 10, 5, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAsync_ExistingSpoke_ReturnsSpokeDetail()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var spokeId = Guid.NewGuid();
+        var capabilities = JsonSerializer.SerializeToDocument(new[] { "code", "test" });
+        var config = JsonSerializer.SerializeToDocument(new { maxJobs = 3 });
+        var profile = JsonSerializer.SerializeToDocument(new { os = "linux" });
+
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Spoke
+            {
+                Id = spokeId,
+                Name = "test-spoke",
+                Status = SpokeStatus.Online,
+                Capabilities = capabilities,
+                Config = config,
+                Profile = profile,
+                LastSeen = now,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+        var result = await _controller.GetAsync(spokeId, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<SpokeDetailResponse>(okResult.Value);
+        Assert.Equal(spokeId, response.Id);
+        Assert.Equal("test-spoke", response.Name);
+        Assert.Equal(SpokeStatus.Online, response.Status);
+        Assert.Equal(now, response.RegisteredAt);
+        Assert.NotNull(response.Profile);
+    }
+
+    [Fact]
+    public async Task GetAsync_NonExistentSpoke_ThrowsNotFoundException()
+    {
+        var spokeId = Guid.NewGuid();
+
+        _spokeServiceMock
+            .Setup(s => s.GetSpokeAsync(spokeId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Nexus.Hub.Domain.Exceptions.NotFoundException($"Spoke {spokeId} not found"));
+
+        await Assert.ThrowsAsync<Nexus.Hub.Domain.Exceptions.NotFoundException>(
+            () => _controller.GetAsync(spokeId, CancellationToken.None));
+    }
 }
