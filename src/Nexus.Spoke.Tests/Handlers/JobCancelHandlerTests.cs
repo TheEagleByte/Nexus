@@ -119,7 +119,7 @@ public class JobCancelHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WhenKillContainerThrows_StillReportsAndCleans()
+    public async Task HandleAsync_WhenKillContainerThrows_PropagatesException()
     {
         var jobId = Guid.NewGuid();
         var cts = new CancellationTokenSource();
