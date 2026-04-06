@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
+import { Toaster } from "@/components/ui/sonner";
 import type { SpokeResponse } from "@/types/api";
 
 interface AppShellProps {
@@ -26,6 +27,7 @@ export function AppShell({ initialSpokes, signalrUrl, children }: AppShellProps)
         </main>
       </div>
       <MobileNav />
+      <Toaster position="bottom-right" />
     </SignalRProvider>
   );
 }

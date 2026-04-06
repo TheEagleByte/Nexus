@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { SpokeStatus, ProjectStatus, JobStatus } from "@/types/api";
+import type { SpokeStatus, ProjectStatus, JobStatus, JobType } from "@/types/api";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -80,4 +80,45 @@ export function jobStatusColor(status: JobStatus): string {
     case "cancelled":
       return "bg-muted text-muted-foreground";
   }
+}
+
+export function jobTypeLabel(type: JobType): string {
+  switch (type) {
+    case "implement":
+      return "Implement";
+    case "test":
+      return "Test";
+    case "refactor":
+      return "Refactor";
+    case "investigate":
+      return "Investigate";
+    case "custom":
+      return "Custom";
+  }
+}
+
+export function formatDuration(
+  start: string,
+  end?: string | null
+): string {
+  const startMs = new Date(start).getTime();
+  const endMs = end ? new Date(end).getTime() : Date.now();
+  const diff = Math.max(0, endMs - startMs);
+
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s`;
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+const ANSI_REGEX = /\x1b\[[0-9;]*[a-zA-Z]/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_REGEX, "");
 }

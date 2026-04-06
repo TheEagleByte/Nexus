@@ -64,4 +64,9 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
             return outputStream;
         });
     }
+
+    public async Task<long> TotalBytesByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => await _context.OutputStreams
+            .Where(o => o.JobId == jobId)
+            .SumAsync(o => (long)o.Content.Length, cancellationToken);
 }

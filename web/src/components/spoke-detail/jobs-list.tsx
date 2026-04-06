@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { jobStatusColor, relativeTime } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -19,9 +20,10 @@ export function JobsList({ jobs }: JobsListProps) {
   return (
     <div className="space-y-2 p-4">
       {jobs.map((job) => (
-        <div
+        <Link
           key={job.id}
-          className="rounded border border-border bg-background p-3"
+          href={`/jobs/${job.id}`}
+          className="block rounded border border-border bg-background p-3 transition-colors hover:border-primary/50"
         >
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-medium text-foreground capitalize">
@@ -45,7 +47,7 @@ export function JobsList({ jobs }: JobsListProps) {
           <div className="text-xs text-muted-foreground font-mono">
             Created {relativeTime(job.createdAt)}
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

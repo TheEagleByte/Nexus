@@ -21,6 +21,53 @@ public class JobsController(
     private readonly IHubContext<NexusHub> _hubContext = hubContext;
     private readonly ILogger<JobsController> _logger = logger;
 
+    [HttpGet]
+    public async Task<IActionResult> ListAsync(
+        [FromQuery] JobStatus? status = null,
+        [FromQuery] JobType? type = null,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        limit = Math.Clamp(limit, 1, 100);
+
+        var jobs = await _jobService.ListJobsAsync(status: status, type: type, limit: limit, offset: offset, cancellationToken: cancellationToken);
+        var total = await _jobService.GetJobCountAsync(status: status, type: type, cancellationToken: cancellationToken);
+
+        var response = new JobListResponse
+        {
+            Jobs = jobs.Select(j => new JobResponse
+            {
+                Id = j.Id,
+                ProjectId = j.ProjectId,
+                SpokeId = j.SpokeId,
+                Type = j.Type,
+                Status = j.Status,
+                CreatedAt = j.CreatedAt,
+                StartedAt = j.StartedAt,
+                CompletedAt = j.CompletedAt,
+                Summary = j.Summary
+            }).ToList(),
+            Total = total,
+            Limit = limit,
+            Offset = offset
+        };
+
+        return Ok(response);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateAsync([FromBody] CreateJobRequest request, CancellationToken cancellationToken)
     {
@@ -64,6 +111,7 @@ public class JobsController(
             return NotFound();
 
         var outputCount = await _jobService.GetJobOutputCountAsync(id, cancellationToken);
+        var outputTotalBytes = await _jobService.GetJobOutputTotalBytesAsync(id, cancellationToken);
 
         var response = new JobDetailResponse
         {
@@ -76,7 +124,8 @@ public class JobsController(
             StartedAt = job.StartedAt,
             CompletedAt = job.CompletedAt,
             Summary = job.Summary,
-            OutputChunkCount = outputCount
+            OutputChunkCount = outputCount,
+            OutputTotalBytes = outputTotalBytes
         };
 
         return Ok(response);

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { projectStatusColor, relativeTime } from "@/lib/utils";
 import type { ProjectResponse } from "@/types/api";
@@ -18,9 +19,10 @@ export function ProjectsList({ projects }: ProjectsListProps) {
   return (
     <div className="space-y-2 p-4">
       {projects.map((project) => (
-        <div
+        <Link
           key={project.id}
-          className="rounded border border-border bg-background p-3"
+          href={`/projects/${project.id}`}
+          className="block rounded border border-border bg-background p-3 transition-colors hover:border-primary/50"
         >
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-medium text-foreground truncate">
@@ -44,7 +46,7 @@ export function ProjectsList({ projects }: ProjectsListProps) {
             </span>
             <span>Updated {relativeTime(project.updatedAt)}</span>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
