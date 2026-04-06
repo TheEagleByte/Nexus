@@ -55,7 +55,7 @@ public class DockerServiceTests
         var request = new WorkerLaunchRequest(
             jobId, "TEST-1", JobType.Implement,
             "/tmp/prompt.md", "/repo", "/output",
-            "/skills/spoke", "/skills/project");
+            "/skills/spoke", "/skills/project", "/tmp/merged-skills.md");
 
         Assert.Equal(jobId, request.JobId);
         Assert.Equal("TEST-1", request.ProjectKey);
@@ -65,6 +65,7 @@ public class DockerServiceTests
         Assert.Equal("/output", request.OutputPath);
         Assert.Equal("/skills/spoke", request.SpokeSkillsPath);
         Assert.Equal("/skills/project", request.ProjectSkillsPath);
+        Assert.Equal("/tmp/merged-skills.md", request.MergedSkillsFilePath);
     }
 
     [Fact]
@@ -73,9 +74,10 @@ public class DockerServiceTests
         var request = new WorkerLaunchRequest(
             Guid.NewGuid(), "TEST-1", JobType.Test,
             "/tmp/prompt.md", "/repo", "/output",
-            null, null);
+            null, null, null);
 
         Assert.Null(request.SpokeSkillsPath);
         Assert.Null(request.ProjectSkillsPath);
+        Assert.Null(request.MergedSkillsFilePath);
     }
 }
