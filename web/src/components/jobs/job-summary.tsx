@@ -31,6 +31,7 @@ export function JobSummary({ summary }: JobSummaryProps) {
           variant="ghost"
           size="icon-sm"
           onClick={handleCopy}
+          aria-label="Copy summary"
           title="Copy summary"
         >
           <Copy className="w-3.5 h-3.5" />

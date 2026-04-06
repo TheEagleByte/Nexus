@@ -83,6 +83,8 @@ export function ProjectDetail({ project, initialJobs, totalJobs }: ProjectDetail
       const data = await fetchProjectJobsClient(project.id, {
         limit: 20,
         offset: jobs.length,
+        ...(statusFilter !== "all" && { status: statusFilter }),
+        ...(typeFilter !== "all" && { type: typeFilter }),
       });
       setJobs((prev) => [...prev, ...data.jobs]);
       setTotal(data.total);
@@ -156,13 +158,13 @@ export function ProjectDetail({ project, initialJobs, totalJobs }: ProjectDetail
 
       {/* Job History */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Job History
           </h2>
           <div className="flex gap-2">
             <Select value={statusFilter} onValueChange={(v) => { if (v) setStatusFilter(v); }}>
-              <SelectTrigger className="h-7 w-[140px] text-xs">
+              <SelectTrigger className="h-7 w-full sm:w-[140px] text-xs">
                 <SelectValue>
                   {statusFilter === "all" ? "All statuses" : statusFilter.replace("_", " ")}
                 </SelectValue>
@@ -177,7 +179,7 @@ export function ProjectDetail({ project, initialJobs, totalJobs }: ProjectDetail
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={(v) => { if (v) setTypeFilter(v); }}>
-              <SelectTrigger className="h-7 w-[130px] text-xs">
+              <SelectTrigger className="h-7 w-full sm:w-[130px] text-xs">
                 <SelectValue>
                   {typeFilter === "all" ? "All types" : jobTypeLabel(typeFilter as JobType)}
                 </SelectValue>

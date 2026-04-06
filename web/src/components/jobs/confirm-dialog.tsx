@@ -33,7 +33,7 @@ export function ConfirmDialog({
   loading = false,
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!loading) onOpenChange(v); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

@@ -57,14 +57,15 @@ export function JobTimeline({ jobs }: JobTimelineProps) {
     );
   }
 
-  // Group jobs by date
-  const groups: { label: string; jobs: JobResponse[] }[] = [];
-  let currentLabel = "";
+  // Group jobs by date (keyed by ISO date for stability across years)
+  const groups: { key: string; label: string; jobs: JobResponse[] }[] = [];
+  let currentKey = "";
   for (const job of jobs) {
-    const label = dateLabel(job.createdAt);
-    if (label !== currentLabel) {
-      groups.push({ label, jobs: [job] });
-      currentLabel = label;
+    const date = new Date(job.createdAt);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    if (key !== currentKey) {
+      groups.push({ key, label: dateLabel(job.createdAt), jobs: [job] });
+      currentKey = key;
     } else {
       groups[groups.length - 1].jobs.push(job);
     }
@@ -73,7 +74,7 @@ export function JobTimeline({ jobs }: JobTimelineProps) {
   return (
     <div className="space-y-4">
       {groups.map((group) => (
-        <div key={group.label}>
+        <div key={group.key}>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             {group.label}
           </h3>
