@@ -159,6 +159,10 @@ public class JobAssignHandler(
             {
                 logger.LogWarning(ex, "Failed to deserialize ticket metadata for {ProjectKey}", projectKey);
             }
+            catch (IOException ex)
+            {
+                logger.LogWarning(ex, "Failed to read ticket metadata file for {ProjectKey}", projectKey);
+            }
         }
 
         var assemblyContext = new PromptAssemblyContext(
