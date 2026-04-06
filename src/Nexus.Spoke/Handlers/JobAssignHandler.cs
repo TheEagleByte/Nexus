@@ -84,6 +84,10 @@ public class JobAssignHandler(
         {
             logger.LogWarning("At max concurrent jobs ({Max}), cannot accept job {JobId}",
                 config.Value.Approval.MaxConcurrentJobs, assignment.JobId);
+            await lifecycleService.ReportStatusAsync(
+                assignment.JobId, assignment.ProjectId, projectKey,
+                JobStatus.Queued, JobStatus.Failed,
+                $"Spoke at capacity ({config.Value.Approval.MaxConcurrentJobs} concurrent jobs)");
             return;
         }
 

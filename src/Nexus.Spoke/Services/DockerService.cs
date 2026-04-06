@@ -12,7 +12,8 @@ public class DockerService : IDockerService
     private readonly DockerClient _client;
     private readonly SpokeConfiguration _config;
     private readonly ILogger<DockerService> _logger;
-    private bool _imageVerified;
+    private readonly SemaphoreSlim _imageLock = new(1, 1);
+    private volatile bool _imageVerified;
 
     public DockerService(IOptions<SpokeConfiguration> config, ILogger<DockerService> logger)
     {
@@ -26,6 +27,23 @@ public class DockerService : IDockerService
         if (_imageVerified)
             return;
 
+        await _imageLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_imageVerified)
+                return;
+
+            await EnsureImageCoreAsync(cancellationToken);
+            _imageVerified = true;
+        }
+        finally
+        {
+            _imageLock.Release();
+        }
+    }
+
+    private async Task EnsureImageCoreAsync(CancellationToken cancellationToken)
+    {
         var imageName = _config.Docker.WorkerImage;
         _logger.LogInformation("Ensuring worker image {Image} is available", imageName);
 
@@ -42,7 +60,6 @@ public class DockerService : IDockerService
         if (images.Count > 0)
         {
             _logger.LogInformation("Worker image {Image} found locally", imageName);
-            _imageVerified = true;
             return;
         }
 
@@ -72,7 +89,6 @@ public class DockerService : IDockerService
                         Tag = imageName.Contains(':') ? imageName.Split(':')[1] : "latest"
                     }, cancellationToken);
 
-                _imageVerified = true;
                 _logger.LogInformation("Worker image pulled and tagged as {Image}", imageName);
                 return;
             }
@@ -138,6 +154,11 @@ public class DockerService : IDockerService
         foreach (var file in files)
         {
             var relativePath = Path.GetRelativePath(directory, file).Replace('\\', '/');
+            if (relativePath.Length > 100)
+            {
+                throw new InvalidOperationException(
+                    $"File path '{relativePath}' exceeds TAR 100-byte limit. Use shorter paths or a tar library.");
+            }
             var content = File.ReadAllBytes(file);
 
             // TAR header (512 bytes)
@@ -373,9 +394,15 @@ public class DockerService : IDockerService
     private static async Task<int> ReadExactAsync(MultiplexedStream stream, byte[] buffer, int count,
         CancellationToken cancellationToken)
     {
-        // MultiplexedStream.ReadOutputAsync returns ReadResult with buffer and stream type
-        var result = await stream.ReadOutputAsync(buffer, 0, count, cancellationToken);
-        return result.Count;
+        var totalRead = 0;
+        while (totalRead < count)
+        {
+            var result = await stream.ReadOutputAsync(buffer, totalRead, count - totalRead, cancellationToken);
+            if (result.Count == 0)
+                break; // End of stream
+            totalRead += result.Count;
+        }
+        return totalRead;
     }
 
     public async Task<long> WaitForExitAsync(string containerId, CancellationToken cancellationToken = default)
@@ -432,10 +459,10 @@ public class DockerService : IDockerService
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        _imageLock.Dispose();
         _client.Dispose();
-        await ValueTask.CompletedTask;
-        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 }

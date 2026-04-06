@@ -39,7 +39,6 @@ public class JobTimeoutMonitorTests
     public async Task StopsGracefullyOnCancellation()
     {
         var monitor = CreateMonitor();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         // Should exit without throwing
         await monitor.StartAsync(CancellationToken.None);
@@ -50,16 +49,15 @@ public class JobTimeoutMonitorTests
     [Fact]
     public async Task DoesNotTimeOutRecentJobs()
     {
-        // Job started just now, timeout is 10 seconds
+        // Job started just now, timeout is 1 hour
         var jobId = Guid.NewGuid();
+        using var jobCts = new CancellationTokenSource();
         _activeJobTracker.TryAdd(jobId, new ActiveJob(
             jobId, Guid.NewGuid(), "TEST-1", "container-1",
-            new CancellationTokenSource(), DateTimeOffset.UtcNow));
+            jobCts, DateTimeOffset.UtcNow));
 
-        var monitor = CreateMonitor(timeoutSeconds: 3600); // 1 hour timeout
+        var monitor = CreateMonitor(timeoutSeconds: 3600);
 
-        // Start and let it run one check cycle
-        using var cts = new CancellationTokenSource();
         await monitor.StartAsync(CancellationToken.None);
         await Task.Delay(100);
         await monitor.StopAsync(CancellationToken.None);
@@ -72,9 +70,40 @@ public class JobTimeoutMonitorTests
     }
 
     [Fact]
+    public async Task TimesOutExpiredJobs()
+    {
+        var jobId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+        using var jobCts = new CancellationTokenSource();
+
+        // Job started 2 hours ago, timeout is 1 minute
+        _activeJobTracker.TryAdd(jobId, new ActiveJob(
+            jobId, projectId, "TEST-1", "container-1",
+            jobCts, DateTimeOffset.UtcNow.AddHours(-2)));
+
+        var monitor = CreateMonitor(timeoutSeconds: 60);
+
+        // Directly invoke the check method (internal, visible via InternalsVisibleTo)
+        await monitor.CheckForTimedOutJobsAsync();
+
+        // Job should be removed from tracker
+        Assert.Null(_activeJobTracker.Get(jobId));
+
+        // Container should have been killed and removed
+        _dockerServiceMock.Verify(m => m.KillContainerAsync("container-1", It.IsAny<CancellationToken>()), Times.Once);
+        _dockerServiceMock.Verify(m => m.RemoveContainerAsync("container-1", It.IsAny<CancellationToken>()), Times.Once);
+
+        // Status should be reported as Failed
+        _lifecycleServiceMock.Verify(m => m.ReportStatusAsync(
+            jobId, projectId, "TEST-1",
+            JobStatus.Running, JobStatus.Failed,
+            It.Is<string>(s => s.Contains("timed out")),
+            null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public void HandlesEmptyTracker()
     {
-        // Just verify construction doesn't throw with empty tracker
         var monitor = CreateMonitor();
         Assert.NotNull(monitor);
     }

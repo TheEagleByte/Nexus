@@ -60,8 +60,9 @@ public class JobCancelHandler(
             cancellation.Reason ?? "Cancelled by hub",
             cancellationToken: CancellationToken.None);
 
-        // Remove from tracker and cleanup container
-        activeJobTracker.TryRemove(cancellation.JobId, out _);
+        // Remove from tracker, dispose CTS, and cleanup container
+        if (activeJobTracker.TryRemove(cancellation.JobId, out var removedJob))
+            removedJob?.Cts.Dispose();
         await dockerService.RemoveContainerAsync(activeJob.ContainerId, CancellationToken.None);
 
         logger.LogInformation("Job {JobId} cancelled and cleaned up", cancellation.JobId);

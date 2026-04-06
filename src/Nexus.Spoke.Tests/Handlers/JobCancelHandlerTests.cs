@@ -117,4 +117,24 @@ public class JobCancelHandlerTests
             JobStatus.Running, JobStatus.Cancelled,
             "Cancelled by hub", null, CancellationToken.None), Times.Once);
     }
+
+    [Fact]
+    public async Task HandleAsync_WhenKillContainerThrows_StillReportsAndCleans()
+    {
+        var jobId = Guid.NewGuid();
+        var cts = new CancellationTokenSource();
+
+        _activeJobTracker.TryAdd(jobId, new ActiveJob(
+            jobId, Guid.NewGuid(), "TEST-1", "container-abc", cts, DateTimeOffset.UtcNow));
+
+        _dockerServiceMock.Setup(m => m.KillContainerAsync("container-abc", CancellationToken.None))
+            .ThrowsAsync(new InvalidOperationException("Docker daemon unavailable"));
+
+        var cancellation = new JobCancellation(jobId, "force cancel");
+        var command = new CommandEnvelope("job.cancel", cancellation, DateTimeOffset.UtcNow);
+
+        // Should propagate the exception (handler doesn't swallow Docker errors)
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.HandleAsync(command, CancellationToken.None));
+    }
 }

@@ -33,7 +33,7 @@ public class JobTimeoutMonitor(
         }
     }
 
-    private async Task CheckForTimedOutJobsAsync()
+    internal async Task CheckForTimedOutJobsAsync()
     {
         var timeout = TimeSpan.FromSeconds(config.Value.Docker.TimeoutSeconds);
         var activeJobs = activeJobTracker.GetAll();
@@ -73,7 +73,8 @@ public class JobTimeoutMonitor(
                     cancellationToken: CancellationToken.None);
 
                 // Cleanup
-                activeJobTracker.TryRemove(job.JobId, out _);
+                if (activeJobTracker.TryRemove(job.JobId, out var removedJob))
+                    removedJob?.Cts.Dispose();
                 await dockerService.RemoveContainerAsync(job.ContainerId, CancellationToken.None);
 
                 logger.LogInformation("Timed-out job {JobId} killed and cleaned up", job.JobId);

@@ -202,9 +202,10 @@ public class JobAssignHandlerTests
             NullLogger<JobAssignHandler>.Instance);
 
         // Fill up the tracker
+        using var existingCts = new CancellationTokenSource();
         _activeJobTracker.TryAdd(Guid.NewGuid(), new ActiveJob(
             Guid.NewGuid(), Guid.NewGuid(), "existing",
-            "container-1", new CancellationTokenSource(), DateTimeOffset.UtcNow));
+            "container-1", existingCts, DateTimeOffset.UtcNow));
 
         var assignment = new JobAssignment(
             Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
@@ -220,5 +221,12 @@ public class JobAssignHandlerTests
 
         // Should not attempt to launch
         _dockerServiceMock.Verify(m => m.EnsureImageAsync(It.IsAny<CancellationToken>()), Times.Never);
+
+        // Should report capacity rejection to hub
+        _lifecycleServiceMock.Verify(m => m.ReportStatusAsync(
+            assignment.JobId, assignment.ProjectId, "TEST-2",
+            JobStatus.Queued, JobStatus.Failed,
+            It.Is<string>(s => s.Contains("capacity")),
+            null, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
