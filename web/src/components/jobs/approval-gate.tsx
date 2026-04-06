@@ -154,7 +154,7 @@ export function ApprovalGate({
           <DialogFooter>
             <Button
               onClick={handleReject}
-              disabled={rejecting}
+              disabled={rejecting || !feedback.trim()}
               size="sm"
               variant="destructive"
             >
