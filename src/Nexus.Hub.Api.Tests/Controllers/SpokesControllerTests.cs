@@ -55,6 +55,7 @@ public class SpokesControllerTests
                 It.IsAny<JsonDocument>(),
                 It.IsAny<JsonDocument>(),
                 It.IsAny<JsonDocument?>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke
             {
@@ -137,6 +138,7 @@ public class SpokesControllerTests
                 It.IsAny<JsonDocument>(),
                 It.IsAny<JsonDocument>(),
                 It.Is<JsonDocument?>(p => p != null),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke
             {
@@ -166,6 +168,7 @@ public class SpokesControllerTests
             It.IsAny<JsonDocument>(),
             It.IsAny<JsonDocument>(),
             It.Is<JsonDocument?>(p => p != null),
+            It.IsAny<Guid?>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -182,6 +185,7 @@ public class SpokesControllerTests
                 It.IsAny<JsonDocument>(),
                 It.IsAny<JsonDocument>(),
                 It.IsAny<JsonDocument?>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke
             {
@@ -208,6 +212,7 @@ public class SpokesControllerTests
             It.IsAny<JsonDocument>(),
             It.IsAny<JsonDocument>(),
             null,
+            It.IsAny<Guid?>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

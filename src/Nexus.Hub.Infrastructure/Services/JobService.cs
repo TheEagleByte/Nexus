@@ -123,4 +123,7 @@ public class JobService(IJobRepository jobRepository, IOutputStreamRepository ou
 
     public Task<int> GetJobCountAsync(Guid? spokeId = null, Guid? projectId = null, JobStatus? status = null, JobType? type = null, DateTimeOffset? from = null, DateTimeOffset? to = null, CancellationToken cancellationToken = default)
         => _jobRepository.CountAsync(spokeId, projectId, status, type, from, to, cancellationToken);
+
+    public Task<long> GetJobOutputTotalBytesAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => _outputStreamRepository.TotalBytesByJobAsync(jobId, cancellationToken);
 }

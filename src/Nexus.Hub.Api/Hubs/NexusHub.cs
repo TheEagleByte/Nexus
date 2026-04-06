@@ -140,7 +140,7 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         }
         catch (NotFoundException)
         {
-            spoke = await _spokeService.RegisterSpokeAsync(registration.Name, capabilities, config, profile);
+            spoke = await _spokeService.RegisterSpokeAsync(registration.Name, capabilities, config, profile, requestedId: spokeId);
 
             // Remap connection to the newly assigned spoke ID
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spoke-{spokeId}");

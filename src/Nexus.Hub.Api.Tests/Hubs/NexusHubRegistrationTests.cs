@@ -162,6 +162,7 @@ public class NexusHubRegistrationTests : IDisposable
                 It.IsAny<System.Text.Json.JsonDocument>(),
                 It.IsAny<System.Text.Json.JsonDocument>(),
                 It.IsAny<System.Text.Json.JsonDocument?>(),
+                It.IsAny<Guid?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Spoke
             {
@@ -180,6 +181,7 @@ public class NexusHubRegistrationTests : IDisposable
             It.IsAny<System.Text.Json.JsonDocument>(),
             It.IsAny<System.Text.Json.JsonDocument>(),
             It.IsAny<System.Text.Json.JsonDocument?>(),
+            It.IsAny<Guid?>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
         _callerMock.Verify(c => c.SendCoreAsync(

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Layers, FolderOpen } from "lucide-react";
 import { cn, spokeStatusColor } from "@/lib/utils";
 import { useSignalR } from "@/lib/signalr";
 import type { SpokeResponse } from "@/types/api";
@@ -28,6 +29,37 @@ export function Sidebar({ initialSpokes }: SidebarProps) {
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-60 border-r border-border bg-surface h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto">
+      {/* Navigation links */}
+      <div className="p-4 pb-2 space-y-1">
+        <Link
+          href="/jobs"
+          className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-sm text-sm font-medium transition-colors duration-150",
+            pathname.startsWith("/jobs")
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground hover:bg-surface-accent"
+          )}
+        >
+          <Layers className="w-4 h-4" />
+          Jobs
+        </Link>
+        <Link
+          href="/projects"
+          className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-sm text-sm font-medium transition-colors duration-150",
+            pathname.startsWith("/projects")
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground hover:bg-surface-accent"
+          )}
+        >
+          <FolderOpen className="w-4 h-4" />
+          Projects
+        </Link>
+      </div>
+
+      <div className="border-b border-border mx-4" />
+
+      {/* Spokes list */}
       <div className="p-4">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Spokes
@@ -56,7 +88,7 @@ export function Sidebar({ initialSpokes }: SidebarProps) {
                   />
                   <span className="truncate">{spoke.name}</span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5 pl-4">
+                <div className={cn("text-xs mt-0.5 pl-4", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {spoke.activeJobCount} job
                   {spoke.activeJobCount !== 1 ? "s" : ""}
                 </div>

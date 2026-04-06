@@ -78,7 +78,7 @@ public class SpokesController(
             });
         }
 
-        var spoke = await _spokeService.RegisterSpokeAsync(request.Name, capabilities, config, profile, cancellationToken);
+        var spoke = await _spokeService.RegisterSpokeAsync(request.Name, capabilities, config, profile, cancellationToken: cancellationToken);
 
         var response = new SpokeDetailResponse
         {

@@ -101,3 +101,71 @@ export interface JobListResponse {
   limit: number;
   offset: number;
 }
+
+export interface JobDetailResponse extends JobResponse {
+  outputChunkCount: number;
+  outputTotalBytes: number;
+  progress: JobProgress | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface JobProgress {
+  elapsedSeconds: number;
+  estimatedTotalSeconds: number | null;
+}
+
+export interface OutputChunk {
+  sequence: number;
+  content: string;
+  streamType: string;
+  timestamp: string;
+}
+
+export interface JobOutputResponse {
+  jobId: string;
+  chunks: OutputChunk[];
+  totalChunks: number;
+  limit: number;
+  offset: number;
+  isComplete: boolean;
+}
+
+export interface CreateJobRequest {
+  projectId: string;
+  type: JobType;
+  requiresApproval: boolean;
+  context?: unknown;
+}
+
+export interface ApproveJobRequest {
+  approved: boolean;
+  modifications?: unknown;
+}
+
+export interface CancelJobRequest {
+  reason?: string;
+}
+
+export interface JobOutputReceivedEvent {
+  jobId: string;
+  spokeId: string;
+  sequence: number;
+  content: string;
+  streamType: string;
+  timestamp: string;
+}
+
+export interface ProjectUpdatedEvent {
+  projectId: string;
+  status: ProjectStatus;
+  timestamp: string;
+}
+
+export interface JobStatusChangedEvent {
+  spokeId: string;
+  jobId: string;
+  newStatus: JobStatus;
+  previousStatus: JobStatus;
+  summary?: string;
+  timestamp: string;
+}
