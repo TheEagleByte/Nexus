@@ -34,7 +34,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!loading) onOpenChange(v); }}>
-      <DialogContent>
+      <DialogContent showCloseButton={!loading}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
