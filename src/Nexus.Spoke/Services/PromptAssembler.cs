@@ -133,27 +133,37 @@ public class PromptAssembler(
         logger.LogWarning("Assembled prompt is {Over} chars over budget ({Total} total), truncating", overBy, result.Length);
 
         // Truncate in priority order: history first, then skills, then plan
+        // Use index-based replacement to avoid replacing unintended substring matches
         if (!string.IsNullOrEmpty(history) && overBy > 0)
         {
             var truncated = TruncateSection(history, Math.Max(0, history.Length - overBy));
-            result = result.Replace(history, truncated);
+            result = ReplaceFirst(result, history, truncated);
             overBy = result.Length - MaxPromptChars;
         }
 
         if (!string.IsNullOrEmpty(skills) && overBy > 0)
         {
             var truncated = TruncateSection(skills, Math.Max(0, skills.Length - overBy));
-            result = result.Replace(skills, truncated);
+            result = ReplaceFirst(result, skills, truncated);
             overBy = result.Length - MaxPromptChars;
         }
 
         if (!string.IsNullOrEmpty(plan) && overBy > 0)
         {
             var truncated = TruncateSection(plan, Math.Max(0, plan.Length - overBy));
-            result = result.Replace(plan, truncated);
+            result = ReplaceFirst(result, plan, truncated);
         }
 
         return result;
+    }
+
+    private static string ReplaceFirst(string source, string oldValue, string newValue)
+    {
+        var index = source.IndexOf(oldValue, StringComparison.Ordinal);
+        if (index < 0)
+            return source;
+
+        return string.Concat(source.AsSpan(0, index), newValue, source.AsSpan(index + oldValue.Length));
     }
 
     private static string TruncateSection(string section, int targetLength)

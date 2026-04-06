@@ -138,6 +138,7 @@ public class ProjectHistoryInjectorTests
 
         var result = await _sut.GetHistorySummaryAsync("proj-1", Guid.NewGuid(), maxTotalChars: 500);
 
+        Assert.False(string.IsNullOrWhiteSpace(result), "Result should not be empty when truncating");
         Assert.True(result.Length <= 500, $"Result should be under 500 chars, was {result.Length}");
     }
 
