@@ -42,3 +42,9 @@ public enum MessageDirection
     SpokeToUser,
     System
 }
+
+public enum ConversationRole
+{
+    User,
+    Assistant
+}

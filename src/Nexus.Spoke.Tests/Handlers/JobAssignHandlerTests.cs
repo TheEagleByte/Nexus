@@ -17,6 +17,7 @@ public class JobAssignHandlerTests
     private readonly Mock<IWorkerOutputStreamer> _outputStreamerMock;
     private readonly Mock<IJobLifecycleService> _lifecycleServiceMock;
     private readonly Mock<IJobArtifactService> _jobArtifactsMock;
+    private readonly Mock<ISkillMerger> _skillMergerMock;
     private readonly ActiveJobTracker _activeJobTracker;
     private readonly Mock<IHostApplicationLifetime> _appLifetimeMock;
     private readonly JobAssignHandler _sut;
@@ -29,6 +30,10 @@ public class JobAssignHandlerTests
         _outputStreamerMock = new Mock<IWorkerOutputStreamer>();
         _lifecycleServiceMock = new Mock<IJobLifecycleService>();
         _jobArtifactsMock = new Mock<IJobArtifactService>();
+        _skillMergerMock = new Mock<ISkillMerger>();
+        _skillMergerMock.Setup(m => m.MergeSkillsAsync(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
         _activeJobTracker = new ActiveJobTracker();
         _appLifetimeMock = new Mock<IHostApplicationLifetime>();
         _appLifetimeMock.Setup(a => a.ApplicationStopping).Returns(CancellationToken.None);
@@ -45,6 +50,7 @@ public class JobAssignHandlerTests
             _outputStreamerMock.Object,
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),
@@ -115,6 +121,7 @@ public class JobAssignHandlerTests
             _outputStreamerMock.Object,
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),
@@ -196,6 +203,7 @@ public class JobAssignHandlerTests
             _outputStreamerMock.Object,
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),

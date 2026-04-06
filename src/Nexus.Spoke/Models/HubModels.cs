@@ -113,6 +113,20 @@ public record JobCancellation(
     string? Reason
 );
 
+// Conversation messages (hub ↔ spoke)
+public record ConversationUserMessage(
+    Guid ConversationId,
+    Guid SpokeId,
+    string Content,
+    DateTimeOffset Timestamp
+);
+
+public record ConversationSpokeMessage(
+    Guid ConversationId,
+    string Content,
+    DateTimeOffset Timestamp
+);
+
 // Worker launch request (internal to spoke)
 public record WorkerLaunchRequest(
     Guid JobId,
@@ -122,5 +136,6 @@ public record WorkerLaunchRequest(
     string RepoPath,
     string OutputPath,
     string? SpokeSkillsPath,
-    string? ProjectSkillsPath
+    string? ProjectSkillsPath,
+    string? MergedSkillsFilePath
 );

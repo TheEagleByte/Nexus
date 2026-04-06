@@ -37,21 +37,29 @@ try
     builder.Services.AddSingleton<IJiraService, JiraService>();
     builder.Services.AddSingleton<IJobArtifactService, JobArtifactService>();
 
+    // NEX-125: Skills merge service
+    builder.Services.AddSingleton<ISkillMerger, SkillMerger>();
+
     // NEX-4: Docker integration & worker launching
     builder.Services.AddSingleton<IDockerService, DockerService>();
     builder.Services.AddSingleton<IWorkerOutputStreamer, WorkerOutputStreamer>();
     builder.Services.AddSingleton<IJobLifecycleService, JobLifecycleService>();
     builder.Services.AddSingleton<ActiveJobTracker>();
 
+    // NEX-140: Conversation runner
+    builder.Services.AddSingleton<IConversationRunner, ConversationRunner>();
+
     // NEX-138: Command queue and handler dispatch
     builder.Services.AddSingleton<CommandQueue>();
     builder.Services.AddSingleton<JobAssignHandler>();
     builder.Services.AddSingleton<JobCancelHandler>();
+    builder.Services.AddSingleton<ConversationMessageHandler>();
     builder.Services.AddSingleton<CommandHandlerRegistry>(sp =>
     {
         var registry = new CommandHandlerRegistry();
         registry.Register(sp.GetRequiredService<JobAssignHandler>());
         registry.Register(sp.GetRequiredService<JobCancelHandler>());
+        registry.Register(sp.GetRequiredService<ConversationMessageHandler>());
         return registry;
     });
     builder.Services.AddHostedService<CommandQueueWorker>();
