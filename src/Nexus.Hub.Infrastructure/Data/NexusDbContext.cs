@@ -12,6 +12,8 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
     public DbSet<OutputStream> OutputStreams => Set<OutputStream>();
     public DbSet<User> Users => Set<User>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +24,8 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
         ConfigureOutputStream(modelBuilder);
         ConfigureUser(modelBuilder);
         ConfigureAuditLog(modelBuilder);
+        ConfigureConversation(modelBuilder);
+        ConfigureConversationMessage(modelBuilder);
     }
 
     private static void ConfigureSpoke(ModelBuilder modelBuilder)
@@ -162,6 +166,45 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
                 .WithMany()
                 .HasForeignKey(a => a.SpokeId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    private static void ConfigureConversation(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Title).HasMaxLength(500).IsRequired();
+            entity.Property(c => c.CcSessionId).HasMaxLength(255);
+            entity.Property(c => c.IsArchived).HasDefaultValue(false);
+
+            entity.HasIndex(c => c.SpokeId);
+            entity.HasIndex(c => c.CreatedAt).IsDescending();
+            entity.HasIndex(c => c.IsArchived);
+            entity.HasIndex(c => c.UpdatedAt).IsDescending();
+
+            entity.HasOne(c => c.Spoke)
+                .WithMany()
+                .HasForeignKey(c => c.SpokeId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(c => c.Messages)
+                .WithOne(m => m.Conversation)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureConversationMessage(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ConversationMessage>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Role).HasMaxLength(50).HasConversion<string>().IsRequired();
+            entity.Property(m => m.Content).IsRequired();
+
+            entity.HasIndex(m => m.ConversationId);
+            entity.HasIndex(m => m.Timestamp).IsDescending();
         });
     }
 }
