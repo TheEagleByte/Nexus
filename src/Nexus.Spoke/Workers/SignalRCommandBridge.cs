@@ -28,6 +28,13 @@ public class SignalRCommandBridge(
                 new CommandEnvelope("message.to_spoke", message, DateTimeOffset.UtcNow));
         });
 
+        connectionService.OnReceived<object>("JobCancelled", async cancelMsg =>
+        {
+            logger.LogInformation("Received job cancellation from hub");
+            await commandQueue.EnqueueAsync(
+                new CommandEnvelope("job.cancel", cancelMsg, DateTimeOffset.UtcNow));
+        });
+
         logger.LogDebug("SignalR command bridge registered");
         return Task.CompletedTask;
     }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -12,12 +13,25 @@ public class JobAssignHandlerTests
 {
     private readonly Mock<IProjectManager> _projectManagerMock;
     private readonly Mock<IJiraService> _jiraServiceMock;
+    private readonly Mock<IDockerService> _dockerServiceMock;
+    private readonly Mock<IWorkerOutputStreamer> _outputStreamerMock;
+    private readonly Mock<IJobLifecycleService> _lifecycleServiceMock;
+    private readonly Mock<IJobArtifactService> _jobArtifactsMock;
+    private readonly ActiveJobTracker _activeJobTracker;
+    private readonly Mock<IHostApplicationLifetime> _appLifetimeMock;
     private readonly JobAssignHandler _sut;
 
     public JobAssignHandlerTests()
     {
         _projectManagerMock = new Mock<IProjectManager>();
         _jiraServiceMock = new Mock<IJiraService>();
+        _dockerServiceMock = new Mock<IDockerService>();
+        _outputStreamerMock = new Mock<IWorkerOutputStreamer>();
+        _lifecycleServiceMock = new Mock<IJobLifecycleService>();
+        _jobArtifactsMock = new Mock<IJobArtifactService>();
+        _activeJobTracker = new ActiveJobTracker();
+        _appLifetimeMock = new Mock<IHostApplicationLifetime>();
+        _appLifetimeMock.Setup(a => a.ApplicationStopping).Returns(CancellationToken.None);
 
         var config = new SpokeConfiguration
         {
@@ -27,6 +41,12 @@ public class JobAssignHandlerTests
         _sut = new JobAssignHandler(
             _projectManagerMock.Object,
             _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
             Options.Create(config),
             NullLogger<JobAssignHandler>.Instance);
     }
@@ -91,6 +111,12 @@ public class JobAssignHandlerTests
         var handler = new JobAssignHandler(
             _projectManagerMock.Object,
             _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
             Options.Create(config),
             NullLogger<JobAssignHandler>.Instance);
 
@@ -130,5 +156,69 @@ public class JobAssignHandlerTests
 
         // Should not throw — successfully deserialized from JsonElement
         _projectManagerMock.Verify(m => m.GetProjectAsync(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReportsFailedWhenDockerDisabled()
+    {
+        // Default config has Docker = false
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-1" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-1"))
+            .ReturnsAsync(new ProjectInfo("TEST-1", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-1"));
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await _sut.HandleAsync(command, CancellationToken.None);
+
+        _lifecycleServiceMock.Verify(m => m.ReportStatusAsync(
+            assignment.JobId, assignment.ProjectId, "TEST-1",
+            JobStatus.Queued, JobStatus.Failed,
+            It.Is<string>(s => s.Contains("Docker")),
+            null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RejectsWhenAtMaxConcurrency()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true },
+            Approval = new SpokeConfiguration.ApprovalConfig { MaxConcurrentJobs = 1 }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        // Fill up the tracker
+        _activeJobTracker.TryAdd(Guid.NewGuid(), new ActiveJob(
+            Guid.NewGuid(), Guid.NewGuid(), "existing",
+            "container-1", new CancellationTokenSource(), DateTimeOffset.UtcNow));
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-2" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-2"))
+            .ReturnsAsync(new ProjectInfo("TEST-2", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-2"));
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        // Should not attempt to launch
+        _dockerServiceMock.Verify(m => m.EnsureImageAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

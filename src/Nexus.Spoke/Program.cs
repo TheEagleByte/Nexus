@@ -37,13 +37,21 @@ try
     builder.Services.AddSingleton<IJiraService, JiraService>();
     builder.Services.AddSingleton<IJobArtifactService, JobArtifactService>();
 
+    // NEX-4: Docker integration & worker launching
+    builder.Services.AddSingleton<IDockerService, DockerService>();
+    builder.Services.AddSingleton<IWorkerOutputStreamer, WorkerOutputStreamer>();
+    builder.Services.AddSingleton<IJobLifecycleService, JobLifecycleService>();
+    builder.Services.AddSingleton<ActiveJobTracker>();
+
     // NEX-138: Command queue and handler dispatch
     builder.Services.AddSingleton<CommandQueue>();
     builder.Services.AddSingleton<JobAssignHandler>();
+    builder.Services.AddSingleton<JobCancelHandler>();
     builder.Services.AddSingleton<CommandHandlerRegistry>(sp =>
     {
         var registry = new CommandHandlerRegistry();
         registry.Register(sp.GetRequiredService<JobAssignHandler>());
+        registry.Register(sp.GetRequiredService<JobCancelHandler>());
         return registry;
     });
     builder.Services.AddHostedService<CommandQueueWorker>();
@@ -54,6 +62,9 @@ try
     // NEX-134: Heartbeat (registers ack handler before connection)
     builder.Services.AddSingleton<ResourceMonitor>();
     builder.Services.AddHostedService<HeartbeatWorker>();
+
+    // NEX-34: Job timeout monitor
+    builder.Services.AddHostedService<JobTimeoutMonitor>();
 
     // Hub connection worker starts AFTER all handlers are registered
     builder.Services.AddHostedService<HubConnectionWorker>();
