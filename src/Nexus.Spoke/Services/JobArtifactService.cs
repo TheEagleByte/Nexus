@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Nexus.Spoke.Models;
 
@@ -13,7 +14,7 @@ public class JobArtifactService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly object _outputLock = new();
+    private readonly ConcurrentDictionary<Guid, object> _outputLocks = new();
 
     public Task<string> InitializeJobAsync(string projectKey, Guid jobId)
     {
@@ -37,7 +38,7 @@ public class JobArtifactService(
     {
         var outputPath = Path.Combine(GetJobDirectory(projectKey, jobId), "output.log");
 
-        lock (_outputLock)
+        lock (_outputLocks.GetOrAdd(jobId, _ => new object()))
         {
             File.AppendAllText(outputPath, content);
         }
@@ -122,10 +123,14 @@ public class JobArtifactService(
         var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
         if (data is null) return null;
 
-        var jobId = data.TryGetValue("jobId", out var id) ? Guid.Parse(id.GetString()!) : Guid.Empty;
-        var status = data.TryGetValue("status", out var s) ? Enum.Parse<JobStatus>(s.GetString()!) : JobStatus.Queued;
-        var createdAt = data.TryGetValue("createdAt", out var c) ? DateTimeOffset.Parse(c.GetString()!) : DateTimeOffset.MinValue;
-        var completedAt = data.TryGetValue("completedAt", out var comp) ? DateTimeOffset.Parse(comp.GetString()!) : (DateTimeOffset?)null;
+        var jobId = data.TryGetValue("jobId", out var id) && Guid.TryParse(id.GetString(), out var parsedId)
+            ? parsedId : Guid.Empty;
+        var status = data.TryGetValue("status", out var s) && Enum.TryParse<JobStatus>(s.GetString(), ignoreCase: true, out var parsedStatus)
+            ? parsedStatus : JobStatus.Queued;
+        var createdAt = data.TryGetValue("createdAt", out var c) && DateTimeOffset.TryParse(c.GetString(), out var parsedCreated)
+            ? parsedCreated : DateTimeOffset.MinValue;
+        var completedAt = data.TryGetValue("completedAt", out var comp) && DateTimeOffset.TryParse(comp.GetString(), out var parsedCompleted)
+            ? parsedCompleted : (DateTimeOffset?)null;
 
         string? summary = null;
         var summaryPath = Path.Combine(jobDir, "summary.md");

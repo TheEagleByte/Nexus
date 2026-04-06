@@ -22,7 +22,7 @@ Jira:
     - "PROJ"
 
 Workspace:
-  BaseDirectory: "C:\\Users\\garre\\AppData\\Local\\Nexus"
+  BaseDirectory: "%LOCALAPPDATA%\\Nexus"  # Uses env var expansion; Linux/macOS: ~/.nexus
 
 Approval:
   Mode: "plan_review"

@@ -26,6 +26,7 @@ public class ProjectManager(
 
     public async Task<ProjectInfo> CreateProjectAsync(string projectKey, string? name = null, string? summary = null)
     {
+        ValidateProjectKey(projectKey);
         var projectPath = GetProjectPath(projectKey);
 
         if (Directory.Exists(projectPath))
@@ -58,6 +59,7 @@ public class ProjectManager(
 
     public async Task<ProjectInfo?> GetProjectAsync(string projectKey)
     {
+        ValidateProjectKey(projectKey);
         var statusPath = Path.Combine(GetMetaPath(projectKey), "status.json");
         if (!File.Exists(statusPath)) return null;
 
@@ -107,6 +109,7 @@ public class ProjectManager(
 
     public async Task UpdateStatusAsync(string projectKey, ProjectStatus newStatus)
     {
+        ValidateProjectKey(projectKey);
         var statusPath = Path.Combine(GetMetaPath(projectKey), "status.json");
         if (!File.Exists(statusPath))
             throw new InvalidOperationException($"Project {projectKey} does not exist.");
@@ -129,28 +132,53 @@ public class ProjectManager(
 
         logger.LogInformation("Project {ProjectKey} status changed: {Old} → {New}", projectKey, status.Status, newStatus);
 
+        // Best-effort hub notification — don't let notification failures affect status persistence
         if (hubConnection.IsConnected && hubConnection.SpokeId.HasValue)
         {
-            await hubConnection.SendAsync("ReportProjectStatusChanged",
-                new { ProjectId = Guid.Empty, NewStatus = newStatus }, default);
+            try
+            {
+                await hubConnection.SendAsync("ReportProjectStatusChanged",
+                    new { ProjectId = hubConnection.SpokeId.Value, NewStatus = newStatus }, default);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to notify hub of status change for project {ProjectKey}", projectKey);
+            }
         }
     }
 
     public async Task SaveTicketMetadataAsync(string projectKey, TicketMetadata ticket)
     {
+        ValidateProjectKey(projectKey);
         var ticketPath = Path.Combine(GetMetaPath(projectKey), "ticket.json");
         await WriteJsonAsync(ticketPath, ticket);
         logger.LogDebug("Saved ticket metadata for {ProjectKey}", projectKey);
     }
 
-    public string GetProjectPath(string projectKey) =>
-        Path.Combine(GetProjectsDirectory(), projectKey);
+    public string GetProjectPath(string projectKey)
+    {
+        ValidateProjectKey(projectKey);
+        return Path.Combine(GetProjectsDirectory(), projectKey);
+    }
 
     public string GetMetaPath(string projectKey) =>
         Path.Combine(GetProjectPath(projectKey), ".meta");
 
     private string GetProjectsDirectory() =>
         Path.Combine(WorkspaceInitializer.ResolveBasePath(config.Value), "projects");
+
+    private static void ValidateProjectKey(string projectKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectKey);
+
+        if (Path.IsPathRooted(projectKey) ||
+            projectKey.Contains(Path.DirectorySeparatorChar) ||
+            projectKey.Contains(Path.AltDirectorySeparatorChar) ||
+            projectKey.Contains(".."))
+        {
+            throw new ArgumentException($"Invalid project key: '{projectKey}'. Must be a simple directory name.", nameof(projectKey));
+        }
+    }
 
     private static async Task WriteJsonAsync<T>(string path, T value)
     {

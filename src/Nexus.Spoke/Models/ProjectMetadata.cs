@@ -4,7 +4,7 @@ public record StatusMetadata(
     ProjectStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    List<StatusHistoryEntry> History
+    IReadOnlyList<StatusHistoryEntry> History
 );
 
 public record StatusHistoryEntry(

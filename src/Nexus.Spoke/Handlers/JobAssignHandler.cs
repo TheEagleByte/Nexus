@@ -11,6 +11,11 @@ public class JobAssignHandler(
     IOptions<SpokeConfiguration> config,
     ILogger<JobAssignHandler> logger) : ICommandHandler
 {
+    private static readonly JsonSerializerOptions DeserializeOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public string CommandType => "job.assign";
 
     public async Task HandleAsync(CommandEnvelope command, CancellationToken cancellationToken)
@@ -18,6 +23,8 @@ public class JobAssignHandler(
         var assignment = DeserializePayload(command.Payload);
         if (assignment is null)
         {
+            // Malformed commands are dropped — the CommandQueueWorker already logs errors
+            // for handler exceptions, so we log and return to avoid blocking the queue.
             logger.LogError("Failed to deserialize JobAssignment from command payload");
             return;
         }
@@ -35,15 +42,22 @@ public class JobAssignHandler(
         {
             logger.LogInformation("Creating new project {ProjectKey} from hub directive", projectKey);
 
-            var project = await projectManager.CreateProjectAsync(projectKey, projectKey);
+            await projectManager.CreateProjectAsync(projectKey, projectKey);
 
             if (config.Value.Capabilities.Jira)
             {
-                var ticket = await jiraService.FetchTicketAsync(projectKey, cancellationToken);
-                if (ticket is not null)
+                try
                 {
-                    await projectManager.SaveTicketMetadataAsync(projectKey, ticket);
-                    logger.LogInformation("Cached Jira ticket {Key} for project", projectKey);
+                    var ticket = await jiraService.FetchTicketAsync(projectKey, cancellationToken);
+                    if (ticket is not null)
+                    {
+                        await projectManager.SaveTicketMetadataAsync(projectKey, ticket);
+                        logger.LogInformation("Cached Jira ticket {Key} for project", projectKey);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to fetch Jira ticket for {ProjectKey}, continuing without ticket data", projectKey);
                 }
             }
         }
@@ -58,11 +72,9 @@ public class JobAssignHandler(
             return assignment;
 
         if (payload is JsonElement element)
-            return JsonSerializer.Deserialize<JobAssignment>(element.GetRawText(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return JsonSerializer.Deserialize<JobAssignment>(element.GetRawText(), DeserializeOptions);
 
         var json = JsonSerializer.Serialize(payload);
-        return JsonSerializer.Deserialize<JobAssignment>(json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        return JsonSerializer.Deserialize<JobAssignment>(json, DeserializeOptions);
     }
 }

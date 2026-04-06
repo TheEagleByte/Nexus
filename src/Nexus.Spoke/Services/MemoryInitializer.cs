@@ -49,12 +49,14 @@ public static class MemoryInitializer
             """
     };
 
-    public static async Task InitializeAsync(string memoriesDirectory, ILogger logger)
+    public static async Task InitializeAsync(string memoriesDirectory, ILogger logger, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(memoriesDirectory);
 
         foreach (var (fileName, template) in MemoryTemplates)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var filePath = Path.Combine(memoriesDirectory, fileName);
             if (File.Exists(filePath))
             {
@@ -64,7 +66,7 @@ public static class MemoryInitializer
 
             // Dedent the raw string literal template
             var content = Dedent(template);
-            await File.WriteAllTextAsync(filePath, content);
+            await File.WriteAllTextAsync(filePath, content, cancellationToken);
             logger.LogInformation("Created memory file: {Path}", filePath);
         }
     }

@@ -21,7 +21,7 @@ public class WorkspaceInitializer(
             EnsureDirectoryExists(Path.Combine(basePath, sub));
         }
 
-        await MemoryInitializer.InitializeAsync(Path.Combine(basePath, "memories"), logger);
+        await MemoryInitializer.InitializeAsync(Path.Combine(basePath, "memories"), logger, cancellationToken);
 
         logger.LogInformation("Workspace initialization complete");
     }
