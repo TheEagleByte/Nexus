@@ -105,12 +105,14 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
     }
   }
 
-  function handleCopyOutput() {
-    const text = outputContentRef.current();
-    navigator.clipboard.writeText(text).then(
-      () => toast.success("Output copied to clipboard"),
-      () => toast.error("Failed to copy output")
-    );
+  async function handleCopyOutput() {
+    try {
+      const text = outputContentRef.current();
+      await navigator?.clipboard?.writeText(text);
+      toast.success("Output copied to clipboard");
+    } catch {
+      toast.error("Failed to copy output");
+    }
   }
 
   return (

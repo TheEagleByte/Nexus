@@ -13,11 +13,13 @@ interface JobSummaryProps {
 const PR_URL_RE = /github\.com\/.*\/pull\/\d+/;
 
 export function JobSummary({ summary }: JobSummaryProps) {
-  function handleCopy() {
-    navigator.clipboard.writeText(summary).then(
-      () => toast.success("Summary copied to clipboard"),
-      () => toast.error("Failed to copy summary")
-    );
+  async function handleCopy() {
+    try {
+      await navigator?.clipboard?.writeText(summary);
+      toast.success("Summary copied to clipboard");
+    } catch {
+      toast.error("Failed to copy summary");
+    }
   }
 
   return (
