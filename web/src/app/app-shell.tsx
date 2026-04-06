@@ -22,7 +22,7 @@ export function AppShell({ initialSpokes, signalrUrl, children }: AppShellProps)
       <ConnectionBanner />
       <div className="flex flex-1">
         <Sidebar initialSpokes={initialSpokes} />
-        <main className="flex-1 p-4 sm:p-6 pb-20 lg:pb-6 max-w-[1200px]">
+        <main className="flex-1 p-4 sm:p-6 pb-20 lg:pb-6">
           {children}
         </main>
       </div>

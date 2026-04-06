@@ -9,7 +9,7 @@ export function Header() {
 
   return (
     <header className="h-14 border-b border-border bg-surface sticky top-0 z-50">
-      <div className="max-w-screen-2xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
+      <div className="h-full px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-lg font-bold text-primary">
             Nexus

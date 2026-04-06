@@ -88,7 +88,7 @@ export function Sidebar({ initialSpokes }: SidebarProps) {
                   />
                   <span className="truncate">{spoke.name}</span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5 pl-4">
+                <div className={cn("text-xs mt-0.5 pl-4", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {spoke.activeJobCount} job
                   {spoke.activeJobCount !== 1 ? "s" : ""}
                 </div>
