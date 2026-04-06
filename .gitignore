@@ -2,6 +2,9 @@
 .remember/
 .claude/commands/
 
+# Local config overrides (not checked in)
+config.local.yaml
+
 # .NET
 .vs/
 bin/

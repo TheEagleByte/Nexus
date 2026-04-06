@@ -33,6 +33,7 @@ public static class ConfigurationExtensions
         var defaultBase = GetDefaultBasePath();
 
         config.AddYamlFile("config.yaml", optional: true, reloadOnChange: false);
+        config.AddYamlFile("config.local.yaml", optional: true, reloadOnChange: false);
 
         // AddYamlFile with optional:true still throws DirectoryNotFoundException
         // if the parent directory doesn't exist, so guard against that.
