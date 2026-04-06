@@ -25,6 +25,16 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
         if (options.Approval.MaxConcurrentJobs < 1)
             failures.Add("Approval:MaxConcurrentJobs must be at least 1");
 
+        if (options.Capabilities.Git)
+        {
+            if (string.IsNullOrWhiteSpace(options.Git.UserName))
+                failures.Add("Git:UserName is required when Git capability is enabled");
+            if (string.IsNullOrWhiteSpace(options.Git.UserEmail))
+                failures.Add("Git:UserEmail is required when Git capability is enabled");
+            if (options.Git.TimeoutSeconds < 10)
+                failures.Add("Git:TimeoutSeconds must be at least 10");
+        }
+
         if (options.Capabilities.Docker)
         {
             if (options.Docker.TimeoutSeconds < 60)

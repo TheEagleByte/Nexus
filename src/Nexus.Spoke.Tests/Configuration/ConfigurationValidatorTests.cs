@@ -109,4 +109,62 @@ public class ConfigurationValidatorTests
         Assert.True(result.Failed);
         Assert.Contains("MaxConcurrentJobs", result.FailureMessage);
     }
+
+    [Fact]
+    public void Validate_GitEnabled_ValidConfig_Succeeds()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = true;
+        config.Git = new SpokeConfiguration.GitConfig
+        {
+            UserName = "Nexus",
+            UserEmail = "nexus@test.local",
+            TimeoutSeconds = 60
+        };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitEnabled_MissingUserName_Fails()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = true;
+        config.Git = new SpokeConfiguration.GitConfig { UserName = "", UserEmail = "a@b.c" };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Git:UserName is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitEnabled_MissingUserEmail_Fails()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = true;
+        config.Git = new SpokeConfiguration.GitConfig { UserName = "Test", UserEmail = "" };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Git:UserEmail is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitEnabled_TimeoutTooLow_Fails()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = true;
+        config.Git = new SpokeConfiguration.GitConfig { TimeoutSeconds = 5 };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Git:TimeoutSeconds must be at least 10", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitDisabled_SkipsGitValidation()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = false;
+        config.Git = new SpokeConfiguration.GitConfig { UserName = "", UserEmail = "", TimeoutSeconds = 1 };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
 }

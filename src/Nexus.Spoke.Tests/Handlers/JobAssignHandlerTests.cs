@@ -12,6 +12,7 @@ namespace Nexus.Spoke.Tests.Handlers;
 public class JobAssignHandlerTests
 {
     private readonly Mock<IProjectManager> _projectManagerMock;
+    private readonly Mock<IGitService> _gitServiceMock;
     private readonly Mock<IJiraService> _jiraServiceMock;
     private readonly Mock<IDockerService> _dockerServiceMock;
     private readonly Mock<IWorkerOutputStreamer> _outputStreamerMock;
@@ -26,6 +27,7 @@ public class JobAssignHandlerTests
     public JobAssignHandlerTests()
     {
         _projectManagerMock = new Mock<IProjectManager>();
+        _gitServiceMock = new Mock<IGitService>();
         _jiraServiceMock = new Mock<IJiraService>();
         _dockerServiceMock = new Mock<IDockerService>();
         _outputStreamerMock = new Mock<IWorkerOutputStreamer>();
@@ -51,6 +53,7 @@ public class JobAssignHandlerTests
 
         _sut = new JobAssignHandler(
             _projectManagerMock.Object,
+            _gitServiceMock.Object,
             _jiraServiceMock.Object,
             _dockerServiceMock.Object,
             _outputStreamerMock.Object,
@@ -123,6 +126,7 @@ public class JobAssignHandlerTests
         };
         var handler = new JobAssignHandler(
             _projectManagerMock.Object,
+            _gitServiceMock.Object,
             _jiraServiceMock.Object,
             _dockerServiceMock.Object,
             _outputStreamerMock.Object,
@@ -206,6 +210,7 @@ public class JobAssignHandlerTests
         };
         var handler = new JobAssignHandler(
             _projectManagerMock.Object,
+            _gitServiceMock.Object,
             _jiraServiceMock.Object,
             _dockerServiceMock.Object,
             _outputStreamerMock.Object,
@@ -257,6 +262,7 @@ public class JobAssignHandlerTests
         };
         var handler = new JobAssignHandler(
             _projectManagerMock.Object,
+            _gitServiceMock.Object,
             _jiraServiceMock.Object,
             _dockerServiceMock.Object,
             _outputStreamerMock.Object,
@@ -299,5 +305,240 @@ public class JobAssignHandlerTests
                     ctx.HubContext == "build it"),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CallsGitPrepareWhenGitEnabled()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true, Git = true },
+            Git = new SpokeConfiguration.GitConfig { DefaultRepoUrl = "https://github.com/test/repo.git" },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _gitServiceMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-GIT" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-GIT"))
+            .ReturnsAsync(new ProjectInfo("TEST-GIT", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-GIT"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-GIT"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-GIT"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("TEST-GIT"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-GIT", ".meta"));
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-GIT", assignment.JobId))
+            .ReturnsAsync(Path.Combine(Path.GetTempPath(), "projects", "TEST-GIT", "jobs", $"job-{assignment.JobId}"));
+        _dockerServiceMock.Setup(m => m.LaunchWorkerAsync(It.IsAny<WorkerLaunchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("container-git");
+        _gitServiceMock.Setup(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("nexus/implement/TEST-GIT");
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        _gitServiceMock.Verify(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(),
+            "https://github.com/test/repo.git",
+            "main",
+            "nexus/implement/TEST-GIT",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_SkipsGitWhenGitDisabled()
+    {
+        // Default config has Git = false
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-1" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-1"))
+            .ReturnsAsync(new ProjectInfo("TEST-1", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-1"));
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await _sut.HandleAsync(command, CancellationToken.None);
+
+        _gitServiceMock.Verify(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task HandleAsync_UsesCustomFieldRepoUrlOverDefault()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true, Git = true },
+            Git = new SpokeConfiguration.GitConfig { DefaultRepoUrl = "https://default.com/repo.git" },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _gitServiceMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Refactor, "context",
+            new JobParameters(new Dictionary<string, object>
+            {
+                ["projectKey"] = "TEST-CF",
+                ["repoUrl"] = "https://custom.com/repo.git"
+            }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-CF"))
+            .ReturnsAsync(new ProjectInfo("TEST-CF", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-CF"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-CF"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-CF"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("TEST-CF"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-CF", ".meta"));
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-CF", assignment.JobId))
+            .ReturnsAsync(Path.Combine(Path.GetTempPath(), "projects", "TEST-CF", "jobs", $"job-{assignment.JobId}"));
+        _dockerServiceMock.Setup(m => m.LaunchWorkerAsync(It.IsAny<WorkerLaunchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("container-cf");
+        _gitServiceMock.Setup(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("nexus/refactor/TEST-CF");
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        _gitServiceMock.Verify(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(),
+            "https://custom.com/repo.git",
+            "main",
+            "nexus/refactor/TEST-CF",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_FailsWhenGitEnabledButNoRepoUrl()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true, Git = true },
+            Git = new SpokeConfiguration.GitConfig { DefaultRepoUrl = "" },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _gitServiceMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-NOURL" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-NOURL"))
+            .ReturnsAsync(new ProjectInfo("TEST-NOURL", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-NOURL"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-NOURL"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-NOURL"));
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-NOURL", assignment.JobId))
+            .ReturnsAsync(Path.Combine(Path.GetTempPath(), "projects", "TEST-NOURL", "jobs", $"job-{assignment.JobId}"));
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        // Should report failed status due to missing repo URL
+        _lifecycleServiceMock.Verify(m => m.ReportStatusAsync(
+            assignment.JobId, assignment.ProjectId, "TEST-NOURL",
+            JobStatus.Queued, JobStatus.Failed,
+            It.Is<string>(s => s.Contains("repo URL")),
+            null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReportsFailedOnGitException()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true, Git = true },
+            Git = new SpokeConfiguration.GitConfig { DefaultRepoUrl = "https://github.com/test/repo.git" },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _gitServiceMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-FAIL" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-FAIL"))
+            .ReturnsAsync(new ProjectInfo("TEST-FAIL", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-FAIL"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-FAIL"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-FAIL"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("TEST-FAIL"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-FAIL", ".meta"));
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-FAIL", assignment.JobId))
+            .ReturnsAsync(Path.Combine(Path.GetTempPath(), "projects", "TEST-FAIL", "jobs", $"job-{assignment.JobId}"));
+        _gitServiceMock.Setup(m => m.PrepareWorkspaceAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new GitOperationException("clone https://github.com/test/repo.git .", 128, "fatal: repository not found"));
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        _lifecycleServiceMock.Verify(m => m.ReportStatusAsync(
+            assignment.JobId, assignment.ProjectId, "TEST-FAIL",
+            JobStatus.Queued, JobStatus.Failed,
+            It.Is<string>(s => s.Contains("repository not found")),
+            null, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

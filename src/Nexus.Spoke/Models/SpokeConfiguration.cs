@@ -8,6 +8,7 @@ public class SpokeConfiguration
     public WorkspaceConfig Workspace { get; set; } = new();
     public JiraIntegrationConfig Jira { get; set; } = new();
     public ApprovalConfig Approval { get; set; } = new();
+    public GitConfig Git { get; set; } = new();
     public DockerConfig Docker { get; set; } = new();
 
     public class SpokeIdentityConfig
@@ -53,6 +54,15 @@ public class SpokeConfiguration
         public int BatchSize { get; set; } = 5;
         public int MaxConcurrentJobs { get; set; } = 1;
         public int HeartbeatIntervalSeconds { get; set; } = 30;
+    }
+
+    public class GitConfig
+    {
+        public string UserName { get; set; } = "Nexus Spoke";
+        public string UserEmail { get; set; } = "nexus-spoke@noreply.local";
+        public string DefaultRepoUrl { get; set; } = string.Empty;
+        public string DefaultBranch { get; set; } = "main";
+        public int TimeoutSeconds { get; set; } = 120;
     }
 
     public class DockerConfig

@@ -8,6 +8,7 @@ namespace Nexus.Spoke.Handlers;
 
 public class JobAssignHandler(
     IProjectManager projectManager,
+    IGitService gitService,
     IJiraService jiraService,
     IDockerService dockerService,
     IWorkerOutputStreamer outputStreamer,
@@ -123,6 +124,31 @@ public class JobAssignHandler(
         var basePath = projectManager.GetProjectPath(projectKey);
         var repoPath = Path.Combine(basePath, "repo");
         Directory.CreateDirectory(repoPath);
+
+        // Git workspace preparation (gated on Capabilities.Git)
+        if (config.Value.Capabilities.Git)
+        {
+            var repoUrl = assignment.Parameters?.CustomFields?.TryGetValue("repoUrl", out var urlObj) == true
+                && urlObj is not null && !string.IsNullOrWhiteSpace(urlObj.ToString())
+                ? urlObj.ToString()!
+                : config.Value.Git.DefaultRepoUrl;
+
+            if (string.IsNullOrWhiteSpace(repoUrl))
+            {
+                throw new InvalidOperationException(
+                    "Git capability enabled but no repo URL configured. " +
+                    "Set Git:DefaultRepoUrl in config or pass repoUrl in job CustomFields.");
+            }
+
+            var jobTypeName = assignment.Type.ToString().ToLowerInvariant();
+            var featureBranch = $"nexus/{jobTypeName}/{projectKey}";
+
+            logger.LogInformation("Preparing git workspace for {ProjectKey}: {RepoUrl} → {Branch}",
+                projectKey, repoUrl, featureBranch);
+
+            await gitService.PrepareWorkspaceAsync(
+                repoPath, repoUrl, config.Value.Git.DefaultBranch, featureBranch, cancellationToken);
+        }
 
         var spokeSkillsPath = Path.Combine(
             WorkspaceInitializer.ResolveBasePath(config.Value), "skills");

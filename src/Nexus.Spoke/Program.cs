@@ -31,6 +31,9 @@ try
     // NEX-130: Hub connection
     builder.Services.AddSingleton<IHubConnectionService, HubConnectionService>();
 
+    // NEX-186: Git workspace preparation
+    builder.Services.AddSingleton<IGitService, GitService>();
+
     // NEX-2: Project management services
     builder.Services.AddSingleton<IProjectManager, ProjectManager>();
     builder.Services.AddHttpClient();
