@@ -17,3 +17,6 @@ TestResults/
 *.log
 [Dd]ebug/
 [Rr]elease/
+
+# Worktrees
+.worktrees/
