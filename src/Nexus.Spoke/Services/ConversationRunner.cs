@@ -16,11 +16,14 @@ public class ConversationRunner(
         if (string.IsNullOrWhiteSpace(baseDir))
             baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nexus");
 
+        Directory.CreateDirectory(baseDir);
+
         var psi = new ProcessStartInfo
         {
             FileName = "claude",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             UseShellExecute = false,
             CreateNoWindow = true,
             WorkingDirectory = baseDir
@@ -36,8 +39,7 @@ public class ConversationRunner(
             psi.ArgumentList.Add(ccSessionId);
         }
 
-        psi.ArgumentList.Add(message);
-
+        // Pass prompt via stdin to avoid exposing content in process listings
         logger.LogInformation("Invoking CC CLI{Resume} in {WorkingDir}",
             string.IsNullOrEmpty(ccSessionId) ? "" : $" --resume {ccSessionId}",
             psi.WorkingDirectory);
@@ -50,6 +52,10 @@ public class ConversationRunner(
 
         try
         {
+            // Write prompt to stdin and close to signal EOF
+            await process.StandardInput.WriteAsync(message);
+            process.StandardInput.Close();
+
             var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
 
@@ -61,7 +67,7 @@ public class ConversationRunner(
             if (process.ExitCode != 0)
             {
                 logger.LogError("CC CLI failed (exit {ExitCode}): {Stderr}", process.ExitCode, stderr);
-                throw new InvalidOperationException($"CC CLI exited with code {process.ExitCode}: {stderr}");
+                throw new InvalidOperationException($"CC CLI exited with code {process.ExitCode}");
             }
 
             logger.LogInformation("CC CLI responded ({Length} chars)", stdout.Length);

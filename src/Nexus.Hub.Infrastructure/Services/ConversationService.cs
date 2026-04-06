@@ -40,10 +40,11 @@ public class ConversationService(
         // Re-fetch with spoke navigation property loaded
         if (spokeId.HasValue)
         {
-            conversation = await _conversationRepository.GetByIdAsync(conversation.Id, cancellationToken);
+            conversation = await _conversationRepository.GetByIdAsync(conversation.Id, cancellationToken)
+                ?? conversation;
         }
 
-        _logger.LogInformation("Conversation created: {ConversationId} for spoke {SpokeId}", conversation!.Id, spokeId);
+        _logger.LogInformation("Conversation created: {ConversationId} for spoke {SpokeId}", conversation.Id, spokeId);
         return conversation;
     }
 
@@ -73,6 +74,9 @@ public class ConversationService(
 
     public async Task<ConversationMessage> AddMessageAsync(Guid conversationId, ConversationRole role, string content, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(content))
+            throw new ValidationException("Message content cannot be empty");
+
         var conversation = await _conversationRepository.GetByIdAsync(conversationId, cancellationToken)
             ?? throw new NotFoundException($"Conversation with id '{conversationId}' not found");
 

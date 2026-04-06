@@ -61,6 +61,18 @@ public class ConversationsController(
         [FromQuery] int offset = 0,
         CancellationToken cancellationToken = default)
     {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
         limit = Math.Clamp(limit, 1, 100);
 
         var conversation = await _conversationService.GetConversationWithMessagesAsync(id, limit, offset, cancellationToken);
@@ -190,19 +202,25 @@ public class ConversationsController(
 
         var message = await _conversationService.AddMessageAsync(id, ConversationRole.User, request.Content, cancellationToken);
 
-        // Broadcast to dashboard clients
-        await _hubContext.Clients.Group("dashboard").SendAsync("ConversationMessageReceived",
-            new ConversationMessageReceivedEvent(
-                id, message.Id, "user", message.Content, message.Timestamp, false),
-            cancellationToken);
-
-        // Dispatch to spoke if conversation is spoke-bound
-        if (conversation.SpokeId.HasValue)
+        // Best-effort SignalR broadcast — message is already persisted, don't fail the request
+        try
         {
-            await _hubContext.Clients.Group($"spoke-{conversation.SpokeId}")
-                .SendAsync("SendConversationMessage",
-                    new ConversationUserMessage(id, conversation.SpokeId.Value, request.Content, DateTimeOffset.UtcNow),
-                    cancellationToken);
+            await _hubContext.Clients.Group("dashboard").SendAsync("ConversationMessageReceived",
+                new ConversationMessageReceivedEvent(
+                    id, message.Id, "user", message.Content, message.Timestamp, false),
+                cancellationToken);
+
+            if (conversation.SpokeId.HasValue)
+            {
+                await _hubContext.Clients.Group($"spoke-{conversation.SpokeId}")
+                    .SendAsync("SendConversationMessage",
+                        new ConversationUserMessage(id, conversation.SpokeId.Value, request.Content, DateTimeOffset.UtcNow),
+                        cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SignalR broadcast failed for conversation {ConversationId} message {MessageId}", id, message.Id);
         }
 
         var response = new ConversationMessageResponse
