@@ -47,11 +47,11 @@ export default async function SpokeDetailPage({
   }
 
   return (
-    <div className="space-y-0">
+    <div className="-m-4 sm:-m-6 flex flex-col min-h-[calc(100vh-3.5rem)]">
       <SpokeHeader spoke={spoke} />
 
       {/* Desktop: side-by-side layout */}
-      <div className="hidden lg:flex">
+      <div className="hidden lg:flex flex-1">
         {/* Main area — conversation placeholder */}
         <div className="flex-1 p-6">
           <div className="rounded-md border border-border bg-card p-8 text-center">
@@ -84,28 +84,6 @@ export default async function SpokeDetailPage({
       {/* Mobile: tabbed layout */}
       <div className="lg:hidden">
         <SpokeDetailTabs projects={projects} jobs={recentJobs} />
-      </div>
-
-      {/* Stub action buttons */}
-      <div className="p-4 sm:p-6 flex flex-wrap gap-2">
-        <button
-          disabled
-          className="px-4 py-2 text-sm font-medium rounded-md bg-primary/20 text-primary cursor-not-allowed opacity-50"
-        >
-          Create Job
-        </button>
-        <button
-          disabled
-          className="px-4 py-2 text-sm font-medium rounded-md bg-status-warning/20 text-status-warning cursor-not-allowed opacity-50"
-        >
-          Approve Job
-        </button>
-        <button
-          disabled
-          className="px-4 py-2 text-sm font-medium rounded-md bg-secondary text-secondary-foreground cursor-not-allowed opacity-50"
-        >
-          Send Message
-        </button>
       </div>
     </div>
   );
