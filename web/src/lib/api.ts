@@ -6,6 +6,8 @@ import type {
   JobListResponse,
   JobDetailResponse,
   JobOutputResponse,
+  ConversationListResponse,
+  ConversationDetail,
 } from "@/types/api";
 
 const HUB_API_URL = process.env.HUB_API_URL ?? "http://localhost:5000";
@@ -80,6 +82,21 @@ export async function fetchJobOutput(
   return hubFetch<JobOutputResponse>(
     `/api/jobs/${jobId}/output?limit=${limit}&offset=${offset}`
   );
+}
+
+export async function fetchConversations(
+  spokeId?: string
+): Promise<ConversationListResponse> {
+  const query = new URLSearchParams();
+  if (spokeId) query.set("spokeId", spokeId);
+  const qs = query.toString();
+  return hubFetch<ConversationListResponse>(`/api/conversations${qs ? `?${qs}` : ""}`);
+}
+
+export async function fetchConversation(
+  id: string
+): Promise<ConversationDetail> {
+  return hubFetch<ConversationDetail>(`/api/conversations/${id}`);
 }
 
 export async function fetchAllJobs(params?: {

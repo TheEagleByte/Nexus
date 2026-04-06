@@ -16,12 +16,14 @@ public static class DependencyInjection
         services.AddScoped<IJobRepository, JobRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IOutputStreamRepository, OutputStreamRepository>();
+        services.AddScoped<IConversationRepository, ConversationRepository>();
 
         // Services
         services.AddScoped<ISpokeService, SpokeService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IJobService, JobService>();
         services.AddScoped<IMessageService, MessageService>();
+        services.AddScoped<IConversationService, ConversationService>();
 
         return services;
     }

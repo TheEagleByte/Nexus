@@ -19,11 +19,13 @@ import type {
   JobStatusChangedEvent,
   JobOutputReceivedEvent,
   ProjectUpdatedEvent,
+  ConversationMessageReceivedEvent,
 } from "@/types/api";
 
 type ConnectionState = "Disconnected" | "Connecting" | "Connected" | "Reconnecting";
 
 type JobOutputCallback = (chunk: JobOutputReceivedEvent) => void;
+type ConversationMessageCallback = (event: ConversationMessageReceivedEvent) => void;
 
 interface SignalRContextValue {
   connectionState: ConnectionState;
@@ -32,6 +34,8 @@ interface SignalRContextValue {
   projectUpdates: Map<string, ProjectUpdatedEvent>;
   subscribeJobOutput: (jobId: string, cb: JobOutputCallback) => void;
   unsubscribeJobOutput: (jobId: string, cb: JobOutputCallback) => void;
+  subscribeConversationMessages: (conversationId: string, cb: ConversationMessageCallback) => void;
+  unsubscribeConversationMessages: (conversationId: string, cb: ConversationMessageCallback) => void;
 }
 
 const SignalRContext = createContext<SignalRContextValue>({
@@ -41,6 +45,8 @@ const SignalRContext = createContext<SignalRContextValue>({
   projectUpdates: new Map(),
   subscribeJobOutput: () => {},
   unsubscribeJobOutput: () => {},
+  subscribeConversationMessages: () => {},
+  unsubscribeConversationMessages: () => {},
 });
 
 export function useSignalR() {
@@ -61,6 +67,7 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
   const [projectUpdates, setProjectUpdates] = useState<Map<string, ProjectUpdatedEvent>>(new Map());
   const connectionRef = useRef<HubConnection | null>(null);
   const outputListenersRef = useRef<Map<string, Set<JobOutputCallback>>>(new Map());
+  const conversationListenersRef = useRef<Map<string, Set<ConversationMessageCallback>>>(new Map());
 
   const updateSpoke = useCallback(
     (id: string, updates: Partial<SpokeResponse>) => {
@@ -92,6 +99,23 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
     if (set) {
       set.delete(cb);
       if (set.size === 0) listeners.delete(jobId);
+    }
+  }, []);
+
+  const subscribeConversationMessages = useCallback((conversationId: string, cb: ConversationMessageCallback) => {
+    const listeners = conversationListenersRef.current;
+    if (!listeners.has(conversationId)) {
+      listeners.set(conversationId, new Set());
+    }
+    listeners.get(conversationId)!.add(cb);
+  }, []);
+
+  const unsubscribeConversationMessages = useCallback((conversationId: string, cb: ConversationMessageCallback) => {
+    const listeners = conversationListenersRef.current;
+    const set = listeners.get(conversationId);
+    if (set) {
+      set.delete(cb);
+      if (set.size === 0) listeners.delete(conversationId);
     }
   }, []);
 
@@ -162,6 +186,16 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
       }
     });
 
+    // Conversation messages — dispatch to targeted listeners
+    connection.on("ConversationMessageReceived", (data: ConversationMessageReceivedEvent) => {
+      const listeners = conversationListenersRef.current.get(data.conversationId);
+      if (listeners) {
+        for (const cb of listeners) {
+          cb(data);
+        }
+      }
+    });
+
     // Project status updates
     connection.on("ProjectUpdated", (data: ProjectUpdatedEvent) => {
       setProjectUpdates((prev) => {
@@ -191,6 +225,8 @@ export function SignalRProvider({ hubUrl, children }: SignalRProviderProps) {
         projectUpdates,
         subscribeJobOutput,
         unsubscribeJobOutput,
+        subscribeConversationMessages,
+        unsubscribeConversationMessages,
       }}
     >
       {children}

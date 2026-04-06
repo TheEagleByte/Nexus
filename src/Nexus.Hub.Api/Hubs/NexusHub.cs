@@ -7,7 +7,7 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
 
-public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, IMessageService messageService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
+public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, IMessageService messageService, IConversationService conversationService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
 {
     private static readonly ConcurrentDictionary<string, Guid> ConnectionToSpokeMap = new();
 
@@ -15,6 +15,7 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
     private readonly IJobService _jobService = jobService;
     private readonly IProjectService _projectService = projectService;
     private readonly IMessageService _messageService = messageService;
+    private readonly IConversationService _conversationService = conversationService;
     private readonly ILogger<NexusHub> _logger = logger;
 
     public override async Task OnConnectedAsync()
@@ -335,6 +336,29 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         _logger.LogInformation(
             "Message {MessageId} received from spoke {SpokeId} (CorrelationId: {CorrelationId})",
             recorded.Id, spokeId, correlationId);
+    }
+
+    public async Task MessageFromSpokeConversation(ConversationSpokeMessage message)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("MessageFromSpokeConversation from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established. Connect with a valid spokeId first.");
+        }
+
+        var recorded = await _conversationService.AddMessageAsync(
+            message.ConversationId, ConversationRole.Assistant, message.Content);
+
+        await Clients.Group("dashboard").SendAsync("ConversationMessageReceived",
+            new ConversationMessageReceivedEvent(
+                message.ConversationId, recorded.Id, "assistant", recorded.Content, recorded.Timestamp, false));
+
+        _logger.LogInformation(
+            "Conversation message {MessageId} received from spoke {SpokeId} for conversation {ConversationId} (CorrelationId: {CorrelationId})",
+            recorded.Id, spokeId, message.ConversationId, correlationId);
     }
 
     public static async Task DispatchMessageToSpoke(

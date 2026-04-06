@@ -103,3 +103,25 @@ public record ReconnectionPolicy(
     int MaxRetryDelayMs = 300000,
     double BackoffMultiplier = 2.0
 );
+
+public record ConversationMessageReceivedEvent(
+    Guid ConversationId,
+    Guid MessageId,
+    string Role,
+    string Content,
+    DateTimeOffset Timestamp,
+    bool Streaming
+);
+
+public record ConversationUserMessage(
+    Guid ConversationId,
+    Guid SpokeId,
+    string Content,
+    DateTimeOffset Timestamp
+);
+
+public record ConversationSpokeMessage(
+    Guid ConversationId,
+    string Content,
+    DateTimeOffset Timestamp
+);

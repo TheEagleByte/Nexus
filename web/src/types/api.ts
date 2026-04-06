@@ -169,3 +169,55 @@ export interface JobStatusChangedEvent {
   summary?: string;
   timestamp: string;
 }
+
+// Conversations
+
+export type ConversationRole = "user" | "assistant";
+
+export interface ConversationSummary {
+  id: string;
+  spokeId: string | null;
+  spokeName: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  ccSessionId: string | null;
+  messageCount: number;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  role: ConversationRole;
+  content: string;
+  timestamp: string;
+}
+
+export interface ConversationDetail extends ConversationSummary {
+  messages: ConversationMessage[];
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ConversationMessageReceivedEvent {
+  conversationId: string;
+  messageId: string;
+  role: ConversationRole;
+  content: string;
+  timestamp: string;
+  streaming: boolean;
+}
+
+export interface CreateConversationRequest {
+  spokeId?: string | null;
+  title: string;
+}
+
+export interface SendConversationMessageRequest {
+  content: string;
+}
