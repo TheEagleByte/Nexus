@@ -1,0 +1,31 @@
+Spoke:
+  Id: "00000000-0000-0000-0000-000000000001"
+  Name: "Test Workstation"
+  Os: "windows"
+  Architecture: "x64"
+
+Hub:
+  Url: "http://localhost:5000/hubs/nexus"
+  Token: "dev-token-changeme"
+
+Capabilities:
+  Jira: true
+  Git: true
+  Docker: true
+  PrMonitoring: false
+
+Jira:
+  InstanceUrl: "https://your-instance.atlassian.net"
+  Email: "you@example.com"
+  Token: "your-jira-api-token"
+  ProjectKeys:
+    - "PROJ"
+
+Workspace:
+  BaseDirectory: "%LOCALAPPDATA%\\Nexus"  # Uses env var expansion; Linux/macOS: ~/.nexus
+
+Approval:
+  Mode: "plan_review"
+  BatchSize: 5
+  MaxConcurrentJobs: 2
+  HeartbeatIntervalSeconds: 30

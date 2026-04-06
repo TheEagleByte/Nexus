@@ -31,12 +31,19 @@ try
     // NEX-130: Hub connection
     builder.Services.AddSingleton<IHubConnectionService, HubConnectionService>();
 
+    // NEX-2: Project management services
+    builder.Services.AddSingleton<IProjectManager, ProjectManager>();
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<IJiraService, JiraService>();
+    builder.Services.AddSingleton<IJobArtifactService, JobArtifactService>();
+
     // NEX-138: Command queue and handler dispatch
     builder.Services.AddSingleton<CommandQueue>();
+    builder.Services.AddSingleton<JobAssignHandler>();
     builder.Services.AddSingleton<CommandHandlerRegistry>(sp =>
     {
         var registry = new CommandHandlerRegistry();
-        // Future handlers will be registered here via DI scan
+        registry.Register(sp.GetRequiredService<JobAssignHandler>());
         return registry;
     });
     builder.Services.AddHostedService<CommandQueueWorker>();

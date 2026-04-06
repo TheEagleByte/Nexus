@@ -8,9 +8,9 @@ public class WorkspaceInitializer(
     IOptions<SpokeConfiguration> config,
     ILogger<WorkspaceInitializer> logger) : IHostedService
 {
-    private static readonly string[] Subdirectories = ["skills", "projects", "logs", "templates"];
+    private static readonly string[] Subdirectories = ["skills", "projects", "logs", "templates", "memories"];
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         var basePath = ResolveBasePath(config.Value);
         logger.LogInformation("Initializing workspace at {BasePath}", basePath);
@@ -21,8 +21,9 @@ public class WorkspaceInitializer(
             EnsureDirectoryExists(Path.Combine(basePath, sub));
         }
 
+        await MemoryInitializer.InitializeAsync(Path.Combine(basePath, "memories"), logger, cancellationToken);
+
         logger.LogInformation("Workspace initialization complete");
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
