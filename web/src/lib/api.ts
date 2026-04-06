@@ -87,8 +87,10 @@ export async function fetchJobOutput(
 export async function fetchConversations(
   spokeId?: string
 ): Promise<ConversationListResponse> {
-  const params = spokeId ? `?spokeId=${spokeId}` : "";
-  return hubFetch<ConversationListResponse>(`/api/conversations${params}`);
+  const query = new URLSearchParams();
+  if (spokeId) query.set("spokeId", spokeId);
+  const qs = query.toString();
+  return hubFetch<ConversationListResponse>(`/api/conversations${qs ? `?${qs}` : ""}`);
 }
 
 export async function fetchConversation(

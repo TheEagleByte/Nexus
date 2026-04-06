@@ -15,7 +15,6 @@ namespace Nexus.Hub.Api.Tests.Controllers;
 public class ConversationsControllerTests
 {
     private readonly Mock<IConversationService> _conversationServiceMock = new();
-    private readonly Mock<ISpokeService> _spokeServiceMock = new();
     private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
     private readonly Mock<IHubClients> _clientsMock = new();
     private readonly Mock<IClientProxy> _dashboardProxyMock = new();
@@ -31,7 +30,6 @@ public class ConversationsControllerTests
 
         _controller = new ConversationsController(
             _conversationServiceMock.Object,
-            _spokeServiceMock.Object,
             _hubContextMock.Object,
             _loggerMock.Object)
         {
@@ -55,8 +53,6 @@ public class ConversationsControllerTests
             .ReturnsAsync(conversations);
         _conversationServiceMock.Setup(s => s.GetConversationCountAsync(null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
-        _conversationServiceMock.Setup(s => s.GetMessageCountAsync(convId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(5);
 
         var result = await _controller.ListAsync(cancellationToken: CancellationToken.None);
 
@@ -64,7 +60,7 @@ public class ConversationsControllerTests
         var response = Assert.IsType<ConversationListResponse>(ok.Value);
         Assert.Single(response.Conversations);
         Assert.Equal(1, response.Total);
-        Assert.Equal(5, response.Conversations[0].MessageCount);
+        Assert.Equal(0, response.Conversations[0].MessageCount);
     }
 
     [Fact]

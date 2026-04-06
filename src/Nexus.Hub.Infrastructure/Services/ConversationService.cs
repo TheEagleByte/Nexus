@@ -76,6 +76,9 @@ public class ConversationService(
         var conversation = await _conversationRepository.GetByIdAsync(conversationId, cancellationToken)
             ?? throw new NotFoundException($"Conversation with id '{conversationId}' not found");
 
+        if (conversation.IsArchived)
+            throw new ValidationException($"Conversation with id '{conversationId}' is archived");
+
         var message = new ConversationMessage
         {
             Id = Guid.NewGuid(),
@@ -100,6 +103,9 @@ public class ConversationService(
 
     public async Task SetCcSessionIdAsync(Guid conversationId, string ccSessionId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(ccSessionId))
+            throw new ValidationException("ccSessionId cannot be empty");
+
         var conversation = await _conversationRepository.GetByIdAsync(conversationId, cancellationToken)
             ?? throw new NotFoundException($"Conversation with id '{conversationId}' not found");
 

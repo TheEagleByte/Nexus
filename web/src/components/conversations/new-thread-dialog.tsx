@@ -27,9 +27,23 @@ export function NewThreadDialog({ spokes }: NewThreadDialogProps) {
   const [title, setTitle] = useState("");
   const [spokeId, setSpokeId] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function resetForm() {
+    setTitle("");
+    setSpokeId("");
+    setLoading(false);
+    setError(null);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) resetForm();
+  }
 
   async function handleCreate() {
     if (!title.trim()) return;
+    setError(null);
     setLoading(true);
     try {
       const conv = await createConversation({
@@ -37,18 +51,18 @@ export function NewThreadDialog({ spokes }: NewThreadDialogProps) {
         spokeId: spokeId || null,
       });
       setOpen(false);
-      setTitle("");
-      setSpokeId("");
+      resetForm();
       router.push(`/conversations/${conv.id}`);
     } catch (err) {
       console.error("Failed to create conversation:", err);
+      setError("Failed to create conversation. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button
           className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-surface-accent transition-colors"
@@ -92,6 +106,7 @@ export function NewThreadDialog({ spokes }: NewThreadDialogProps) {
             </select>
           </div>
         </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>

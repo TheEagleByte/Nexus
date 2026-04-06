@@ -27,6 +27,11 @@ export function ConversationView({ initialConversation }: ConversationViewProps)
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
 
+  // Reset messages when switching conversations
+  useEffect(() => {
+    setMessages(initialConversation.messages);
+  }, [initialConversation.id, initialConversation.messages]);
+
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -119,7 +124,7 @@ export function ConversationView({ initialConversation }: ConversationViewProps)
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem-3rem)]">
+    <div className="relative flex flex-col h-[calc(100vh-3.5rem-3rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold truncate">
@@ -204,6 +209,7 @@ export function ConversationView({ initialConversation }: ConversationViewProps)
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
+            aria-label="Send message"
             className={cn(
               "p-2.5 rounded-sm transition-colors shrink-0",
               input.trim() && !sending
@@ -211,7 +217,7 @@ export function ConversationView({ initialConversation }: ConversationViewProps)
                 : "bg-muted text-muted-foreground cursor-not-allowed"
             )}
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>

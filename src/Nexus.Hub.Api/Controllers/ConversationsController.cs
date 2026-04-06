@@ -12,12 +12,10 @@ namespace Nexus.Hub.Api.Controllers;
 [Route("api/conversations")]
 public class ConversationsController(
     IConversationService conversationService,
-    ISpokeService spokeService,
     IHubContext<NexusHub> hubContext,
     ILogger<ConversationsController> logger) : ControllerBase
 {
     private readonly IConversationService _conversationService = conversationService;
-    private readonly ISpokeService _spokeService = spokeService;
     private readonly IHubContext<NexusHub> _hubContext = hubContext;
     private readonly ILogger<ConversationsController> _logger = logger;
 
@@ -45,12 +43,7 @@ public class ConversationsController(
         var conversations = await _conversationService.ListConversationsAsync(spokeId, limit, offset, cancellationToken);
         var total = await _conversationService.GetConversationCountAsync(spokeId, cancellationToken);
 
-        var items = new List<ConversationSummaryResponse>();
-        foreach (var c in conversations)
-        {
-            var messageCount = await _conversationService.GetMessageCountAsync(c.Id, cancellationToken);
-            items.Add(MapToSummary(c, messageCount));
-        }
+        var items = conversations.Select(c => MapToSummary(c, 0)).ToList();
 
         return Ok(new ConversationListResponse
         {
@@ -182,16 +175,7 @@ public class ConversationsController(
                 }
             });
 
-        Conversation? conversation;
-        try
-        {
-            conversation = await _conversationService.GetConversationAsync(id, cancellationToken);
-        }
-        catch (Exception)
-        {
-            conversation = null;
-        }
-
+        var conversation = await _conversationService.GetConversationAsync(id, cancellationToken);
         if (conversation is null)
             return NotFound(new ErrorResponse
             {

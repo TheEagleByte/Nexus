@@ -70,7 +70,7 @@ export function Sidebar({ initialSpokes, initialConversations }: SidebarProps) {
           <NewThreadDialog spokes={spokes} />
         </div>
         <nav className="space-y-1">
-          {initialConversations
+          {[...initialConversations]
             .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
             .slice(0, 10)
             .map((conv) => {
@@ -91,7 +91,7 @@ export function Sidebar({ initialSpokes, initialConversations }: SidebarProps) {
                     <span className="truncate">{conv.title}</span>
                   </div>
                   {conv.spokeName && (
-                    <div className={cn("text-xs mt-0.5 pl-5.5", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                    <div className={cn("text-xs mt-0.5 pl-6", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
                       {conv.spokeName}
                     </div>
                   )}
