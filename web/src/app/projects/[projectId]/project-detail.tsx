@@ -100,10 +100,10 @@ export function ProjectDetail({ project, initialJobs }: ProjectDetailProps) {
         />
         <Link
           href={`/jobs?project=${project.id}`}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-md border border-input bg-transparent hover:bg-surface-accent transition-colors"
+          className="inline-flex items-center gap-1 h-7 px-2.5 text-[0.8rem] font-medium rounded-[min(var(--radius-md),12px)] border border-input bg-transparent cursor-pointer hover:bg-muted hover:text-foreground transition-all dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
         >
           All Jobs
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
 
