@@ -103,7 +103,7 @@ export function CreateJobDialog({
             <Label>Job Type</Label>
             <Select value={jobType} onValueChange={(v) => { if (v) setJobType(v as JobType); }}>
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>{jobTypeLabel(jobType)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {JOB_TYPES.map((type) => (

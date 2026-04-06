@@ -128,7 +128,9 @@ export function JobQueue({ initialJobs, total, spokes, filters }: JobQueueProps)
           onValueChange={(v) => updateFilter("status", v ?? "all")}
         >
           <SelectTrigger className="w-44">
-            <SelectValue />
+            <SelectValue>
+              {STATUS_OPTIONS.find((o) => o.value === (filters.status ?? "all"))?.label ?? "All Statuses"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map((opt) => (
@@ -144,7 +146,9 @@ export function JobQueue({ initialJobs, total, spokes, filters }: JobQueueProps)
           onValueChange={(v) => updateFilter("type", v ?? "all")}
         >
           <SelectTrigger className="w-40">
-            <SelectValue />
+            <SelectValue>
+              {TYPE_OPTIONS.find((o) => o.value === (filters.type ?? "all"))?.label ?? "All Types"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {TYPE_OPTIONS.map((opt) => (
