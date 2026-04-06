@@ -122,7 +122,7 @@ public class JobCancelHandlerTests
     public async Task HandleAsync_WhenKillContainerThrows_PropagatesException()
     {
         var jobId = Guid.NewGuid();
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
 
         _activeJobTracker.TryAdd(jobId, new ActiveJob(
             jobId, Guid.NewGuid(), "TEST-1", "container-abc", cts, DateTimeOffset.UtcNow));
