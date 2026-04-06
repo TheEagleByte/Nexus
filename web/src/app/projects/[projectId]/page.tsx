@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { fetchProject, fetchProjectJobs } from "@/lib/api";
 import { ProjectDetail } from "./project-detail";
-import type { ProjectResponse, JobResponse } from "@/types/api";
+import type { ProjectResponse, JobListResponse } from "@/types/api";
 
 export default async function ProjectDetailPage({
   params,
@@ -17,13 +17,18 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  let jobs: JobResponse[] = [];
+  let jobData: JobListResponse = { jobs: [], total: 0, limit: 20, offset: 0 };
   try {
-    const data = await fetchProjectJobs(projectId);
-    jobs = data.jobs;
+    jobData = await fetchProjectJobs(projectId, { limit: 20 });
   } catch {
     // Jobs fetch failed — continue with empty list
   }
 
-  return <ProjectDetail project={project} initialJobs={jobs} />;
+  return (
+    <ProjectDetail
+      project={project}
+      initialJobs={jobData.jobs}
+      totalJobs={jobData.total}
+    />
+  );
 }
