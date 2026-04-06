@@ -63,13 +63,15 @@ export function NewThreadDialog({ spokes }: NewThreadDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <button
-          className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-surface-accent transition-colors"
-          aria-label="New conversation"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+      <DialogTrigger
+        render={
+          <button
+            className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-surface-accent transition-colors"
+            aria-label="New conversation"
+          />
+        }
+      >
+        <Plus className="w-4 h-4" />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -108,8 +110,8 @@ export function NewThreadDialog({ spokes }: NewThreadDialogProps) {
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+          <DialogClose render={<Button variant="outline" />}>
+            Cancel
           </DialogClose>
           <Button onClick={handleCreate} disabled={!title.trim() || loading}>
             {loading ? "Creating..." : "Create"}
