@@ -35,6 +35,13 @@ public class SignalRCommandBridge(
                 new CommandEnvelope("job.cancel", cancelMsg, DateTimeOffset.UtcNow));
         });
 
+        connectionService.OnReceived<ConversationUserMessage>("SendConversationMessage", async message =>
+        {
+            logger.LogInformation("Received conversation message for {ConversationId}", message.ConversationId);
+            await commandQueue.EnqueueAsync(
+                new CommandEnvelope("conversation.message", message, DateTimeOffset.UtcNow));
+        });
+
         logger.LogDebug("SignalR command bridge registered");
         return Task.CompletedTask;
     }

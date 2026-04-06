@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "./app-shell";
-import { fetchSpokes } from "@/lib/api";
+import { fetchSpokes, fetchConversations } from "@/lib/api";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,9 +25,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let initialSpokes: Awaited<ReturnType<typeof fetchSpokes>>["spokes"] = [];
+  let initialConversations: Awaited<ReturnType<typeof fetchConversations>>["conversations"] = [];
   try {
-    const data = await fetchSpokes();
-    initialSpokes = data.spokes;
+    const [spokesData, conversationsData] = await Promise.all([
+      fetchSpokes(),
+      fetchConversations(),
+    ]);
+    initialSpokes = spokesData.spokes;
+    initialConversations = conversationsData.conversations;
   } catch {
     // API not reachable — start with empty state
   }
@@ -41,7 +46,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
-        <AppShell initialSpokes={initialSpokes} signalrUrl={signalrUrl}>
+        <AppShell initialSpokes={initialSpokes} initialConversations={initialConversations} signalrUrl={signalrUrl}>
           {children}
         </AppShell>
       </body>

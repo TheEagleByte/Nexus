@@ -46,15 +46,20 @@ try
     builder.Services.AddSingleton<IJobLifecycleService, JobLifecycleService>();
     builder.Services.AddSingleton<ActiveJobTracker>();
 
+    // NEX-140: Conversation runner
+    builder.Services.AddSingleton<IConversationRunner, ConversationRunner>();
+
     // NEX-138: Command queue and handler dispatch
     builder.Services.AddSingleton<CommandQueue>();
     builder.Services.AddSingleton<JobAssignHandler>();
     builder.Services.AddSingleton<JobCancelHandler>();
+    builder.Services.AddSingleton<ConversationMessageHandler>();
     builder.Services.AddSingleton<CommandHandlerRegistry>(sp =>
     {
         var registry = new CommandHandlerRegistry();
         registry.Register(sp.GetRequiredService<JobAssignHandler>());
         registry.Register(sp.GetRequiredService<JobCancelHandler>());
+        registry.Register(sp.GetRequiredService<ConversationMessageHandler>());
         return registry;
     });
     builder.Services.AddHostedService<CommandQueueWorker>();

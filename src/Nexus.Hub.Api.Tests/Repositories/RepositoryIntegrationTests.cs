@@ -1009,4 +1009,164 @@ public class RepositoryIntegrationTests : IDisposable
 
         Assert.Equal(0, count);
     }
+
+    // ==========================================================================
+    // ConversationRepository
+    // ==========================================================================
+
+    [Fact]
+    public async Task ConversationRepository_AddAndGetById_RoundTrips()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        var conv = new Conversation
+        {
+            Id = Guid.NewGuid(), Title = "Test Conversation",
+            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+        };
+        await repo.AddAsync(conv);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(conv.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Test Conversation", loaded.Title);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_GetById_ReturnsNullForArchived()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        var conv = new Conversation
+        {
+            Id = Guid.NewGuid(), Title = "Archived", IsArchived = true,
+            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+        };
+        await repo.AddAsync(conv);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var loaded = await repo2.GetByIdAsync(conv.Id);
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_ListAsync_ExcludesArchived()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        await repo.AddAsync(new Conversation { Id = Guid.NewGuid(), Title = "Active", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+        await repo.AddAsync(new Conversation { Id = Guid.NewGuid(), Title = "Archived", IsArchived = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var list = await repo2.ListAsync();
+
+        Assert.Single(list);
+        Assert.Equal("Active", list[0].Title);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_ListAsync_FiltersBySpokeId()
+    {
+        using var ctx = _factory.CreateContext();
+        var spokeRepo = new SpokeRepository(ctx);
+        var spoke = CreateSpoke();
+        await spokeRepo.AddAsync(spoke);
+
+        var convRepo = new ConversationRepository(ctx);
+        await convRepo.AddAsync(new Conversation { Id = Guid.NewGuid(), SpokeId = spoke.Id, Title = "Spoke Conv", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+        await convRepo.AddAsync(new Conversation { Id = Guid.NewGuid(), Title = "Hub Conv", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var list = await repo2.ListAsync(spokeId: spoke.Id);
+
+        Assert.Single(list);
+        Assert.Equal("Spoke Conv", list[0].Title);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_CountAsync_ExcludesArchived()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        await repo.AddAsync(new Conversation { Id = Guid.NewGuid(), Title = "A", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+        await repo.AddAsync(new Conversation { Id = Guid.NewGuid(), Title = "B", IsArchived = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var count = await repo2.CountAsync();
+
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_AddMessageAndCountMessages()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        var convId = Guid.NewGuid();
+        await repo.AddAsync(new Conversation { Id = convId, Title = "Test", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+
+        await repo.AddMessageAsync(new ConversationMessage { Id = Guid.NewGuid(), ConversationId = convId, Role = ConversationRole.User, Content = "Hello", Timestamp = DateTimeOffset.UtcNow });
+        await repo.AddMessageAsync(new ConversationMessage { Id = Guid.NewGuid(), ConversationId = convId, Role = ConversationRole.Assistant, Content = "Hi", Timestamp = DateTimeOffset.UtcNow });
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var count = await repo2.CountMessagesAsync(convId);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_GetByIdWithMessages_ReturnsPaginatedMessages()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        var convId = Guid.NewGuid();
+        await repo.AddAsync(new Conversation { Id = convId, Title = "Test", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+
+        for (int i = 0; i < 5; i++)
+        {
+            await repo.AddMessageAsync(new ConversationMessage
+            {
+                Id = Guid.NewGuid(), ConversationId = convId, Role = ConversationRole.User,
+                Content = $"Message {i}", Timestamp = DateTimeOffset.UtcNow.AddMinutes(i)
+            });
+        }
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        var conv = await repo2.GetByIdWithMessagesAsync(convId, messageLimit: 2, messageOffset: 1);
+
+        Assert.NotNull(conv);
+        Assert.Equal(2, conv.Messages.Count);
+        Assert.Equal("Message 1", conv.Messages.First().Content);
+    }
+
+    [Fact]
+    public async Task ConversationRepository_UpdateAsync_PersistsChanges()
+    {
+        using var ctx = _factory.CreateContext();
+        var repo = new ConversationRepository(ctx);
+        var conv = new Conversation { Id = Guid.NewGuid(), Title = "Original", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+        await repo.AddAsync(conv);
+
+        conv.Title = "Updated";
+        conv.IsArchived = true;
+        await repo.UpdateAsync(conv);
+
+        using var ctx2 = _factory.CreateContext();
+        var repo2 = new ConversationRepository(ctx2);
+        // GetById excludes archived, so query directly
+        var loaded = await ctx2.Conversations.FindAsync(conv.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Updated", loaded.Title);
+        Assert.True(loaded.IsArchived);
+    }
 }
