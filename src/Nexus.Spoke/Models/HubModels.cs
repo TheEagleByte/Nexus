@@ -122,5 +122,6 @@ public record WorkerLaunchRequest(
     string RepoPath,
     string OutputPath,
     string? SpokeSkillsPath,
-    string? ProjectSkillsPath
+    string? ProjectSkillsPath,
+    string? MergedSkillsFilePath
 );

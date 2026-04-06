@@ -231,6 +231,9 @@ public class DockerService : IDockerService
         if (!string.IsNullOrEmpty(request.ProjectSkillsPath) && Directory.Exists(request.ProjectSkillsPath))
             binds.Add($"{request.ProjectSkillsPath}:/workspace/skills/project:ro");
 
+        if (!string.IsNullOrEmpty(request.MergedSkillsFilePath) && File.Exists(request.MergedSkillsFilePath))
+            binds.Add($"{request.MergedSkillsFilePath}:/workspace/skills/CLAUDE.md:ro");
+
         var envVars = new List<string>
         {
             $"JOB_ID={request.JobId}",
