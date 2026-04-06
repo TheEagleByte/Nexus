@@ -77,8 +77,9 @@ public class JobArtifactService(
         {
             var existing = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
                 await File.ReadAllTextAsync(statusPath));
-            if (existing?.TryGetValue("createdAt", out var createdAt) == true)
-                statusData["createdAt"] = createdAt.GetString()!;
+            if (existing?.TryGetValue("createdAt", out var createdAt) == true &&
+                createdAt.GetString() is { } createdAtValue)
+                statusData["createdAt"] = createdAtValue;
         }
 
         if (metrics is not null)
