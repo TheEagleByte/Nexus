@@ -106,3 +106,21 @@ public record SpokeMessage(
     string Content,
     Guid? JobId
 );
+
+// Job cancellation (hub sends to spoke)
+public record JobCancellation(
+    Guid JobId,
+    string? Reason
+);
+
+// Worker launch request (internal to spoke)
+public record WorkerLaunchRequest(
+    Guid JobId,
+    string ProjectKey,
+    JobType JobType,
+    string PromptFilePath,
+    string RepoPath,
+    string OutputPath,
+    string? SpokeSkillsPath,
+    string? ProjectSkillsPath
+);

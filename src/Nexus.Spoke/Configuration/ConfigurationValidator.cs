@@ -25,6 +25,16 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
         if (options.Approval.MaxConcurrentJobs < 1)
             failures.Add("Approval:MaxConcurrentJobs must be at least 1");
 
+        if (options.Capabilities.Docker)
+        {
+            if (options.Docker.TimeoutSeconds < 60)
+                failures.Add("Docker:TimeoutSeconds must be at least 60 when Docker is enabled");
+            if (options.Docker.ResourceLimits.MemoryBytes < 512_000_000)
+                failures.Add("Docker:ResourceLimits:MemoryBytes must be at least 512MB");
+            if (options.Docker.ResourceLimits.CpuCount < 1)
+                failures.Add("Docker:ResourceLimits:CpuCount must be at least 1");
+        }
+
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;

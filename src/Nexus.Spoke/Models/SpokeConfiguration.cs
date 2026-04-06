@@ -8,6 +8,7 @@ public class SpokeConfiguration
     public WorkspaceConfig Workspace { get; set; } = new();
     public JiraIntegrationConfig Jira { get; set; } = new();
     public ApprovalConfig Approval { get; set; } = new();
+    public DockerConfig Docker { get; set; } = new();
 
     public class SpokeIdentityConfig
     {
@@ -52,5 +53,24 @@ public class SpokeConfiguration
         public int BatchSize { get; set; } = 5;
         public int MaxConcurrentJobs { get; set; } = 1;
         public int HeartbeatIntervalSeconds { get; set; } = 30;
+    }
+
+    public class DockerConfig
+    {
+        public string WorkerImage { get; set; } = "nexus-worker:latest";
+        public string WorkerDockerfilePath { get; set; } = "worker/Dockerfile";
+        public string Registry { get; set; } = string.Empty;
+        public DockerResourceLimitsConfig ResourceLimits { get; set; } = new();
+        public int TimeoutSeconds { get; set; } = 14400;
+        public string ContainerUser { get; set; } = "1000:1000";
+        public string NetworkMode { get; set; } = "none";
+        public bool ReadOnlyRootFs { get; set; } = true;
+    }
+
+    public class DockerResourceLimitsConfig
+    {
+        public long MemoryBytes { get; set; } = 8_589_934_592;
+        public int CpuCount { get; set; } = 2;
+        public long DiskLimitBytes { get; set; } = 107_374_182_400;
     }
 }

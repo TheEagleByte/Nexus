@@ -29,3 +29,16 @@ Approval:
   BatchSize: 5
   MaxConcurrentJobs: 2
   HeartbeatIntervalSeconds: 30
+
+Docker:
+  WorkerImage: "nexus-worker:latest"
+  WorkerDockerfilePath: "worker/Dockerfile"
+  Registry: ""
+  ResourceLimits:
+    MemoryBytes: 8589934592      # 8GB
+    CpuCount: 2
+    DiskLimitBytes: 107374182400  # 100GB
+  TimeoutSeconds: 14400           # 4 hours
+  ContainerUser: "1000:1000"
+  NetworkMode: "none"
+  ReadOnlyRootFs: true

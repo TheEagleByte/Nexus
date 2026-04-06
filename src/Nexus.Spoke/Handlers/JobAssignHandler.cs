@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Nexus.Spoke.Models;
 using Nexus.Spoke.Services;
@@ -8,6 +9,12 @@ namespace Nexus.Spoke.Handlers;
 public class JobAssignHandler(
     IProjectManager projectManager,
     IJiraService jiraService,
+    IDockerService dockerService,
+    IWorkerOutputStreamer outputStreamer,
+    IJobLifecycleService lifecycleService,
+    IJobArtifactService jobArtifacts,
+    ActiveJobTracker activeJobTracker,
+    IHostApplicationLifetime appLifetime,
     IOptions<SpokeConfiguration> config,
     ILogger<JobAssignHandler> logger) : ICommandHandler
 {
@@ -23,8 +30,6 @@ public class JobAssignHandler(
         var assignment = DeserializePayload(command.Payload);
         if (assignment is null)
         {
-            // Malformed commands are dropped — the CommandQueueWorker already logs errors
-            // for handler exceptions, so we log and return to avoid blocking the queue.
             logger.LogError("Failed to deserialize JobAssignment from command payload");
             return;
         }
@@ -32,17 +37,17 @@ public class JobAssignHandler(
         logger.LogInformation("Handling job assignment {JobId} for project {ProjectId}",
             assignment.JobId, assignment.ProjectId);
 
-        // Use the project key from parameters, or fall back to ProjectId as the key
+        // Resolve project key
         var projectKey = assignment.Parameters?.CustomFields?.TryGetValue("projectKey", out var keyObj) == true
             && keyObj is not null
             ? keyObj.ToString()!
             : assignment.ProjectId.ToString();
 
+        // Create/find project
         var existing = await projectManager.GetProjectAsync(projectKey);
         if (existing is null)
         {
             logger.LogInformation("Creating new project {ProjectKey} from hub directive", projectKey);
-
             await projectManager.CreateProjectAsync(projectKey, projectKey);
 
             if (config.Value.Capabilities.Jira)
@@ -58,13 +63,181 @@ public class JobAssignHandler(
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Failed to fetch Jira ticket for {ProjectKey}, continuing without ticket data", projectKey);
+                    logger.LogWarning(ex, "Failed to fetch Jira ticket for {ProjectKey}", projectKey);
                 }
             }
         }
 
-        logger.LogInformation("Job {JobId} assigned — project {ProjectKey} ready (job execution not yet implemented)",
-            assignment.JobId, projectKey);
+        // Guard: Docker must be enabled
+        if (!config.Value.Capabilities.Docker)
+        {
+            logger.LogError("Docker capability not enabled — cannot launch worker for job {JobId}", assignment.JobId);
+            await lifecycleService.ReportStatusAsync(
+                assignment.JobId, assignment.ProjectId, projectKey,
+                JobStatus.Queued, JobStatus.Failed,
+                "Docker capability not enabled on this spoke");
+            return;
+        }
+
+        // Guard: concurrency limit
+        if (activeJobTracker.Count >= config.Value.Approval.MaxConcurrentJobs)
+        {
+            logger.LogWarning("At max concurrent jobs ({Max}), cannot accept job {JobId}",
+                config.Value.Approval.MaxConcurrentJobs, assignment.JobId);
+            await lifecycleService.ReportStatusAsync(
+                assignment.JobId, assignment.ProjectId, projectKey,
+                JobStatus.Queued, JobStatus.Failed,
+                $"Spoke at capacity ({config.Value.Approval.MaxConcurrentJobs} concurrent jobs)");
+            return;
+        }
+
+        try
+        {
+            await LaunchWorkerAsync(assignment, projectKey, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to launch worker for job {JobId}", assignment.JobId);
+            await lifecycleService.ReportStatusAsync(
+                assignment.JobId, assignment.ProjectId, projectKey,
+                JobStatus.Queued, JobStatus.Failed,
+                $"Failed to launch worker: {ex.Message}");
+        }
+    }
+
+    private async Task LaunchWorkerAsync(JobAssignment assignment, string projectKey, CancellationToken cancellationToken)
+    {
+        // Ensure Docker image is available
+        await dockerService.EnsureImageAsync(cancellationToken);
+
+        // Initialize job directory and write prompt
+        var jobDir = await jobArtifacts.InitializeJobAsync(projectKey, assignment.JobId);
+        var promptPath = Path.Combine(jobDir, "prompt.md");
+        await jobArtifacts.WritePromptAsync(projectKey, assignment.JobId, assignment.Context);
+
+        var outputPath = Path.Combine(jobDir, "output");
+        Directory.CreateDirectory(outputPath);
+
+        // Resolve workspace paths
+        var basePath = projectManager.GetProjectPath(projectKey);
+        var repoPath = Path.Combine(basePath, "repo");
+        Directory.CreateDirectory(repoPath);
+
+        var spokeSkillsPath = Path.Combine(
+            config.Value.Workspace.BaseDirectory ?? "", "skills");
+        var projectSkillsPath = Path.Combine(basePath, ".nexus", "skills");
+
+        // Report status: Queued → Running
+        await lifecycleService.ReportStatusAsync(
+            assignment.JobId, assignment.ProjectId, projectKey,
+            JobStatus.Queued, JobStatus.Running);
+
+        // Launch the container
+        var request = new WorkerLaunchRequest(
+            assignment.JobId,
+            projectKey,
+            assignment.Type,
+            promptPath,
+            repoPath,
+            outputPath,
+            spokeSkillsPath,
+            projectSkillsPath);
+
+        var containerId = await dockerService.LaunchWorkerAsync(request, cancellationToken);
+
+        // Create a linked CTS so spoke shutdown cancels all jobs
+        var jobCts = CancellationTokenSource.CreateLinkedTokenSource(appLifetime.ApplicationStopping);
+
+        var activeJob = new ActiveJob(
+            assignment.JobId,
+            assignment.ProjectId,
+            projectKey,
+            containerId,
+            jobCts,
+            DateTimeOffset.UtcNow);
+
+        if (!activeJobTracker.TryAdd(assignment.JobId, activeJob))
+        {
+            logger.LogWarning("Job {JobId} already tracked, killing duplicate container", assignment.JobId);
+            await dockerService.KillContainerAsync(containerId, CancellationToken.None);
+            await dockerService.RemoveContainerAsync(containerId, CancellationToken.None);
+            jobCts.Dispose();
+            return;
+        }
+
+        // Fire-and-forget the monitoring loop
+        _ = Task.Run(() => MonitorJobAsync(assignment, projectKey, containerId, jobCts), CancellationToken.None);
+    }
+
+    private async Task MonitorJobAsync(
+        JobAssignment assignment, string projectKey, string containerId, CancellationTokenSource jobCts)
+    {
+        var jobToken = jobCts.Token;
+
+        try
+        {
+            // Stream output and wait for exit in parallel
+            var streamTask = outputStreamer.StreamAsync(
+                assignment.JobId, assignment.ProjectId, projectKey, containerId, jobToken);
+            var waitTask = dockerService.WaitForExitAsync(containerId, jobToken);
+
+            // Wait for the container to exit (streaming completes when container stops)
+            await Task.WhenAll(streamTask, waitTask);
+
+            var exitCode = await waitTask;
+
+            if (exitCode == 0)
+            {
+                await lifecycleService.ReportStatusAsync(
+                    assignment.JobId, assignment.ProjectId, projectKey,
+                    JobStatus.Running, JobStatus.Completed,
+                    "Job completed successfully");
+            }
+            else
+            {
+                await lifecycleService.ReportStatusAsync(
+                    assignment.JobId, assignment.ProjectId, projectKey,
+                    JobStatus.Running, JobStatus.Failed,
+                    $"Worker exited with code {exitCode}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is handled by JobCancelHandler or JobTimeoutMonitor
+            logger.LogInformation("Job {JobId} monitoring cancelled", assignment.JobId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error monitoring job {JobId}", assignment.JobId);
+
+            try
+            {
+                await lifecycleService.ReportStatusAsync(
+                    assignment.JobId, assignment.ProjectId, projectKey,
+                    JobStatus.Running, JobStatus.Failed,
+                    $"Monitoring error: {ex.Message}");
+            }
+            catch
+            {
+                // Best-effort status reporting
+            }
+        }
+        finally
+        {
+            // Cleanup
+            activeJobTracker.TryRemove(assignment.JobId, out _);
+
+            try
+            {
+                await dockerService.RemoveContainerAsync(containerId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to remove container for job {JobId}", assignment.JobId);
+            }
+
+            jobCts.Dispose();
+        }
     }
 
     private static JobAssignment? DeserializePayload(object payload)
