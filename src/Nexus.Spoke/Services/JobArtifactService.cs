@@ -123,12 +123,12 @@ public class JobArtifactService(
         var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
         if (data is null) return null;
 
-        var jobId = data.TryGetValue("jobId", out var id) && Guid.TryParse(id.GetString(), out var parsedId)
-            ? parsedId : Guid.Empty;
+        if (!data.TryGetValue("jobId", out var id) || !Guid.TryParse(id.GetString(), out var jobId))
+            return null;
+        if (!data.TryGetValue("createdAt", out var c) || !DateTimeOffset.TryParse(c.GetString(), out var createdAt))
+            return null;
         var status = data.TryGetValue("status", out var s) && Enum.TryParse<JobStatus>(s.GetString(), ignoreCase: true, out var parsedStatus)
             ? parsedStatus : JobStatus.Queued;
-        var createdAt = data.TryGetValue("createdAt", out var c) && DateTimeOffset.TryParse(c.GetString(), out var parsedCreated)
-            ? parsedCreated : DateTimeOffset.MinValue;
         var completedAt = data.TryGetValue("completedAt", out var comp) && DateTimeOffset.TryParse(comp.GetString(), out var parsedCompleted)
             ? parsedCompleted : (DateTimeOffset?)null;
 

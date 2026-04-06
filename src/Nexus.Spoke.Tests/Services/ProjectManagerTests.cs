@@ -10,7 +10,6 @@ namespace Nexus.Spoke.Tests.Services;
 public class ProjectManagerTests : IDisposable
 {
     private readonly string _tempDir;
-    private readonly Mock<IHubConnectionService> _hubMock;
     private readonly ProjectManager _sut;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -23,7 +22,6 @@ public class ProjectManagerTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), $"nexus-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(_tempDir, "projects"));
 
-        _hubMock = new Mock<IHubConnectionService>();
         var config = new SpokeConfiguration
         {
             Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = _tempDir }
@@ -31,7 +29,6 @@ public class ProjectManagerTests : IDisposable
 
         _sut = new ProjectManager(
             Options.Create(config),
-            _hubMock.Object,
             NullLogger<ProjectManager>.Instance);
     }
 

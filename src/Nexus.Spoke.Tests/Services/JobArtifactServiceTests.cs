@@ -24,7 +24,6 @@ public class JobArtifactServiceTests : IDisposable
 
         _projectManager = new ProjectManager(
             Options.Create(config),
-            new Mock<IHubConnectionService>().Object,
             NullLogger<ProjectManager>.Instance);
 
         _sut = new JobArtifactService(

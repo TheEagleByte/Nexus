@@ -6,7 +6,6 @@ namespace Nexus.Spoke.Services;
 
 public class ProjectManager(
     IOptions<SpokeConfiguration> config,
-    IHubConnectionService hubConnection,
     ILogger<ProjectManager> logger) : IProjectManager
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -132,19 +131,10 @@ public class ProjectManager(
 
         logger.LogInformation("Project {ProjectKey} status changed: {Old} → {New}", projectKey, status.Status, newStatus);
 
-        // Best-effort hub notification — don't let notification failures affect status persistence
-        if (hubConnection.IsConnected && hubConnection.SpokeId.HasValue)
-        {
-            try
-            {
-                await hubConnection.SendAsync("ReportProjectStatusChanged",
-                    new { ProjectId = hubConnection.SpokeId.Value, NewStatus = newStatus }, default);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to notify hub of status change for project {ProjectKey}", projectKey);
-            }
-        }
+        // Hub notification deferred — ReportProjectStatusChanged requires the hub-side project GUID,
+        // which the spoke doesn't have yet. This will be wired up when project creation returns
+        // the hub-assigned GUID (tracked as part of the hub↔spoke project sync work).
+        logger.LogDebug("Hub notification for project {ProjectKey} status change deferred (no project GUID mapping)", projectKey);
     }
 
     public async Task SaveTicketMetadataAsync(string projectKey, TicketMetadata ticket)

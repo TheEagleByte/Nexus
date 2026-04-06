@@ -34,6 +34,7 @@ public class JobAssignHandler(
 
         // Use the project key from parameters, or fall back to ProjectId as the key
         var projectKey = assignment.Parameters?.CustomFields?.TryGetValue("projectKey", out var keyObj) == true
+            && keyObj is not null
             ? keyObj.ToString()!
             : assignment.ProjectId.ToString();
 
