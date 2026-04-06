@@ -18,6 +18,62 @@ public class ProjectsController(
     private readonly IJobService _jobService = jobService;
     private readonly ILogger<ProjectsController> _logger = logger;
 
+    [HttpGet]
+    public async Task<IActionResult> ListAsync(
+        [FromQuery] ProjectStatus? status = null,
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0)
+            return BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_REQUEST",
+                    Message = "Offset must be non-negative",
+                    Status = 400,
+                    CorrelationId = HttpContext.TraceIdentifier
+                }
+            });
+
+        limit = Math.Clamp(limit, 1, 100);
+
+        var projects = await _projectService.ListProjectsAsync(status: status, limit: limit, offset: offset, cancellationToken: cancellationToken);
+        var total = await _projectService.GetProjectCountAsync(status: status, cancellationToken: cancellationToken);
+
+        var spokeIds = projects.Select(p => p.SpokeId).Distinct().ToList();
+        var spokeNames = new Dictionary<Guid, string>();
+        foreach (var spokeId in spokeIds)
+        {
+            var spoke = await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
+            if (spoke is not null) spokeNames[spokeId] = spoke.Name;
+        }
+
+        var response = new ProjectListResponse
+        {
+            Projects = projects.Select(p => new ProjectResponse
+            {
+                Id = p.Id,
+                SpokeId = p.SpokeId,
+                SpokeName = spokeNames.GetValueOrDefault(p.SpokeId, ""),
+                ExternalKey = p.ExternalKey,
+                Name = p.Name,
+                Status = p.Status,
+                Summary = p.Summary,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt,
+                ActiveJobCount = 0,
+                TotalJobCount = 0
+            }).ToList(),
+            Total = total,
+            Limit = limit,
+            Offset = offset
+        };
+
+        return Ok(response);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateAsync([FromBody] CreateProjectRequest request, CancellationToken cancellationToken)
     {

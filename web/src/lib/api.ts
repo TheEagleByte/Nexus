@@ -40,6 +40,19 @@ export async function fetchProject(id: string): Promise<ProjectResponse> {
   return hubFetch<ProjectResponse>(`/api/projects/${id}`);
 }
 
+export async function fetchAllProjects(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ProjectListResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.offset) query.set("offset", String(params.offset));
+  const qs = query.toString();
+  return hubFetch<ProjectListResponse>(`/api/projects${qs ? `?${qs}` : ""}`);
+}
+
 export async function fetchProjectJobs(
   projectId: string,
   params?: { status?: string; type?: string; limit?: number; offset?: number }
