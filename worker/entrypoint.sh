@@ -30,6 +30,31 @@ fi
 # Use /tmp as HOME since root filesystem is read-only
 export HOME=/tmp
 
+# Configure git identity (set via env vars by spoke)
+if [ -n "${GIT_AUTHOR_NAME:-}" ]; then
+    git config --global user.name "$GIT_AUTHOR_NAME"
+    git config --global user.email "${GIT_AUTHOR_EMAIL:-}"
+fi
+
+# Mark workspace as safe directory
+git config --global --add safe.directory /workspace/repo
+
+# SSH auth setup — spoke mounts key at /tmp/.ssh/id_key (read-only)
+if [ -f "/tmp/.ssh/id_key" ]; then
+    mkdir -p /tmp/.ssh_work
+    cp /tmp/.ssh/id_key /tmp/.ssh_work/id_key
+    chmod 600 /tmp/.ssh_work/id_key
+    if [ -f "/tmp/.ssh/known_hosts" ]; then
+        cp /tmp/.ssh/known_hosts /tmp/.ssh_work/known_hosts
+    fi
+    export GIT_SSH_COMMAND="ssh -i /tmp/.ssh_work/id_key -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/.ssh_work/known_hosts"
+fi
+
+# Token auth setup — spoke passes GIT_TOKEN env var for HTTPS credential helper
+if [ -n "${GIT_TOKEN:-}" ]; then
+    git config --global credential.helper '!f() { echo "password=$GIT_TOKEN"; }; f'
+fi
+
 # Build claude command arguments
 CLAUDE_ARGS=(
     "--output-format" "stream-json"
