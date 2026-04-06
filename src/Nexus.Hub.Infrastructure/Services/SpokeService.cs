@@ -11,7 +11,7 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
     private readonly ISpokeRepository _spokeRepository = spokeRepository;
     private readonly ILogger<SpokeService> _logger = logger;
 
-    public async Task<Spoke> RegisterSpokeAsync(string name, JsonDocument capabilities, JsonDocument config, JsonDocument? profile = null, CancellationToken cancellationToken = default)
+    public async Task<Spoke> RegisterSpokeAsync(string name, JsonDocument capabilities, JsonDocument config, JsonDocument? profile = null, Guid? requestedId = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(capabilities);
         ArgumentNullException.ThrowIfNull(config);
@@ -19,7 +19,7 @@ public class SpokeService(ISpokeRepository spokeRepository, ILogger<SpokeService
         var now = DateTimeOffset.UtcNow;
         var spoke = new Spoke
         {
-            Id = Guid.NewGuid(),
+            Id = requestedId is { } id && id != Guid.Empty ? id : Guid.NewGuid(),
             Name = name,
             Status = SpokeStatus.Online,
             Capabilities = capabilities,
