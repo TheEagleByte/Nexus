@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using Nexus.Spoke.Models;
 
@@ -14,7 +13,7 @@ public class JobArtifactService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly ConcurrentDictionary<Guid, object> _outputLocks = new();
+    private static readonly object[] OutputLockStripes = CreateLockStripes(64);
 
     public Task<string> InitializeJobAsync(string projectKey, Guid jobId)
     {
@@ -38,7 +37,7 @@ public class JobArtifactService(
     {
         var outputPath = Path.Combine(GetJobDirectory(projectKey, jobId), "output.log");
 
-        lock (_outputLocks.GetOrAdd(jobId, _ => new object()))
+        lock (OutputLockStripes[(jobId.GetHashCode() & int.MaxValue) % OutputLockStripes.Length])
         {
             File.AppendAllText(outputPath, content);
         }
@@ -75,11 +74,19 @@ public class JobArtifactService(
         // Preserve createdAt from existing status
         if (File.Exists(statusPath))
         {
-            var existing = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                await File.ReadAllTextAsync(statusPath));
-            if (existing?.TryGetValue("createdAt", out var createdAt) == true &&
-                createdAt.GetString() is { } createdAtValue)
-                statusData["createdAt"] = createdAtValue;
+            try
+            {
+                var existing = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+                    await File.ReadAllTextAsync(statusPath));
+                if (existing?.TryGetValue("createdAt", out var createdAt) == true &&
+                    createdAt.ValueKind == JsonValueKind.String &&
+                    createdAt.GetString() is { } createdAtValue)
+                    statusData["createdAt"] = createdAtValue;
+            }
+            catch (JsonException)
+            {
+                // Corrupt existing status.json; continue with fresh status payload.
+            }
         }
 
         if (metrics is not null)
@@ -120,17 +127,33 @@ public class JobArtifactService(
         var statusPath = Path.Combine(jobDir, "status.json");
         if (!File.Exists(statusPath)) return null;
 
-        var json = await File.ReadAllTextAsync(statusPath);
-        var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        Dictionary<string, JsonElement>? data;
+        try
+        {
+            var json = await File.ReadAllTextAsync(statusPath);
+            data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
         if (data is null) return null;
 
-        if (!data.TryGetValue("jobId", out var id) || !Guid.TryParse(id.GetString(), out var jobId))
+        if (!data.TryGetValue("jobId", out var id) ||
+            id.ValueKind != JsonValueKind.String ||
+            !Guid.TryParse(id.GetString(), out var jobId))
             return null;
-        if (!data.TryGetValue("createdAt", out var c) || !DateTimeOffset.TryParse(c.GetString(), out var createdAt))
+        if (!data.TryGetValue("createdAt", out var c) ||
+            c.ValueKind != JsonValueKind.String ||
+            !DateTimeOffset.TryParse(c.GetString(), out var createdAt))
             return null;
-        var status = data.TryGetValue("status", out var s) && Enum.TryParse<JobStatus>(s.GetString(), ignoreCase: true, out var parsedStatus)
+        var status = data.TryGetValue("status", out var s) &&
+            s.ValueKind == JsonValueKind.String &&
+            Enum.TryParse<JobStatus>(s.GetString(), ignoreCase: true, out var parsedStatus)
             ? parsedStatus : JobStatus.Queued;
-        var completedAt = data.TryGetValue("completedAt", out var comp) && DateTimeOffset.TryParse(comp.GetString(), out var parsedCompleted)
+        var completedAt = data.TryGetValue("completedAt", out var comp) &&
+            comp.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(comp.GetString(), out var parsedCompleted)
             ? parsedCompleted : (DateTimeOffset?)null;
 
         string? summary = null;
@@ -143,4 +166,12 @@ public class JobArtifactService(
 
     private string GetJobDirectory(string projectKey, Guid jobId) =>
         Path.Combine(projectManager.GetProjectPath(projectKey), "jobs", $"job-{jobId}");
+
+    private static object[] CreateLockStripes(int size)
+    {
+        var stripes = new object[size];
+        for (var i = 0; i < size; i++)
+            stripes[i] = new object();
+        return stripes;
+    }
 }
