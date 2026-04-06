@@ -14,6 +14,7 @@ public class JobAssignHandler(
     IJobLifecycleService lifecycleService,
     IJobArtifactService jobArtifacts,
     ISkillMerger skillMerger,
+    IPromptAssembler promptAssembler,
     ActiveJobTracker activeJobTracker,
     IHostApplicationLifetime appLifetime,
     IOptions<SpokeConfiguration> config,
@@ -111,10 +112,9 @@ public class JobAssignHandler(
         // Ensure Docker image is available
         await dockerService.EnsureImageAsync(cancellationToken);
 
-        // Initialize job directory and write prompt
+        // Initialize job directory
         var jobDir = await jobArtifacts.InitializeJobAsync(projectKey, assignment.JobId);
         var promptPath = Path.Combine(jobDir, "prompt.md");
-        await jobArtifacts.WritePromptAsync(projectKey, assignment.JobId, assignment.Context);
 
         var outputPath = Path.Combine(jobDir, "output");
         Directory.CreateDirectory(outputPath);
@@ -140,6 +140,44 @@ public class JobAssignHandler(
             mergedSkillsFilePath = Path.Combine(jobDir, "merged-skills.md");
             await File.WriteAllTextAsync(mergedSkillsFilePath, mergedSkills, cancellationToken);
         }
+
+        // Assemble prompt from template + context sources
+        var metaPath = projectManager.GetMetaPath(projectKey);
+        var contextMd = await ReadFileOrNullAsync(Path.Combine(metaPath, "context.md"), cancellationToken);
+        var planMd = await ReadFileOrNullAsync(Path.Combine(metaPath, "plan.md"), cancellationToken);
+
+        TicketMetadata? ticket = null;
+        var ticketPath = Path.Combine(metaPath, "ticket.json");
+        if (File.Exists(ticketPath))
+        {
+            try
+            {
+                var ticketJson = await File.ReadAllTextAsync(ticketPath, cancellationToken);
+                ticket = JsonSerializer.Deserialize<TicketMetadata>(ticketJson, DeserializeOptions);
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex, "Failed to deserialize ticket metadata for {ProjectKey}", projectKey);
+            }
+            catch (IOException ex)
+            {
+                logger.LogWarning(ex, "Failed to read ticket metadata file for {ProjectKey}", projectKey);
+            }
+        }
+
+        var assemblyContext = new PromptAssemblyContext(
+            assignment.JobId,
+            assignment.Type,
+            projectKey,
+            assignment.Context,
+            ticket,
+            contextMd,
+            planMd,
+            spokeSkillsPath,
+            projectSkillsPath);
+
+        var assembledPrompt = await promptAssembler.AssembleAsync(assemblyContext, cancellationToken);
+        await jobArtifacts.WritePromptAsync(projectKey, assignment.JobId, assembledPrompt);
 
         // Report status: Queued → Running
         await lifecycleService.ReportStatusAsync(
@@ -254,6 +292,9 @@ public class JobAssignHandler(
             jobCts.Dispose();
         }
     }
+
+    private static async Task<string?> ReadFileOrNullAsync(string path, CancellationToken cancellationToken = default)
+        => File.Exists(path) ? await File.ReadAllTextAsync(path, cancellationToken) : null;
 
     private static JobAssignment? DeserializePayload(object payload)
     {
