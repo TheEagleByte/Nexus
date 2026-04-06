@@ -13,6 +13,7 @@ public class JobAssignHandler(
     IWorkerOutputStreamer outputStreamer,
     IJobLifecycleService lifecycleService,
     IJobArtifactService jobArtifacts,
+    ISkillMerger skillMerger,
     ActiveJobTracker activeJobTracker,
     IHostApplicationLifetime appLifetime,
     IOptions<SpokeConfiguration> config,
@@ -124,8 +125,21 @@ public class JobAssignHandler(
         Directory.CreateDirectory(repoPath);
 
         var spokeSkillsPath = Path.Combine(
-            config.Value.Workspace.BaseDirectory ?? "", "skills");
+            WorkspaceInitializer.ResolveBasePath(config.Value), "skills");
         var projectSkillsPath = Path.Combine(basePath, ".nexus", "skills");
+
+        // Merge spoke + project skills
+        var mergedSkills = await skillMerger.MergeSkillsAsync(
+            spokeSkillsPath,
+            Directory.Exists(projectSkillsPath) ? projectSkillsPath : null,
+            cancellationToken);
+
+        string? mergedSkillsFilePath = null;
+        if (mergedSkills is not null)
+        {
+            mergedSkillsFilePath = Path.Combine(jobDir, "merged-skills.md");
+            await File.WriteAllTextAsync(mergedSkillsFilePath, mergedSkills, cancellationToken);
+        }
 
         // Report status: Queued → Running
         await lifecycleService.ReportStatusAsync(
@@ -141,7 +155,8 @@ public class JobAssignHandler(
             repoPath,
             outputPath,
             spokeSkillsPath,
-            projectSkillsPath);
+            projectSkillsPath,
+            mergedSkillsFilePath);
 
         var containerId = await dockerService.LaunchWorkerAsync(request, cancellationToken);
 

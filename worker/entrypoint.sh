@@ -11,17 +11,20 @@ if [ ! -f "$PROMPT_FILE" ]; then
     exit 1
 fi
 
-# Build skills path from mounted skill directories
-SKILLS_PATH=""
+# Build skills arguments for Claude Code CLI
+SKILLS_ARGS=()
+
+# Use merged CLAUDE.md if available (pre-merged by spoke with correct precedence)
+if [ -f "/workspace/skills/CLAUDE.md" ]; then
+    SKILLS_ARGS+=("--append-system-prompt-file" "/workspace/skills/CLAUDE.md")
+fi
+
+# Add skill subdirectories as plugin dirs for CC discovery
 if [ -d "/workspace/skills/spoke" ] && [ "$(ls -A /workspace/skills/spoke 2>/dev/null)" ]; then
-    SKILLS_PATH="/workspace/skills/spoke"
+    SKILLS_ARGS+=("--plugin-dir" "/workspace/skills/spoke")
 fi
 if [ -d "/workspace/skills/project" ] && [ "$(ls -A /workspace/skills/project 2>/dev/null)" ]; then
-    if [ -n "$SKILLS_PATH" ]; then
-        SKILLS_PATH="$SKILLS_PATH:/workspace/skills/project"
-    else
-        SKILLS_PATH="/workspace/skills/project"
-    fi
+    SKILLS_ARGS+=("--plugin-dir" "/workspace/skills/project")
 fi
 
 # Use /tmp as HOME since root filesystem is read-only
@@ -45,4 +48,4 @@ echo "Job ID: ${JOB_ID:-unknown}"
 echo "Job Type: ${JOB_TYPE:-unknown}"
 echo "Project Key: ${PROJECT_KEY:-unknown}"
 
-exec claude "${CLAUDE_ARGS[@]}"
+exec claude "${CLAUDE_ARGS[@]}" "${SKILLS_ARGS[@]}"
