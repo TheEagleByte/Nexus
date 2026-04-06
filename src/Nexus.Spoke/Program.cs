@@ -40,6 +40,11 @@ try
     // NEX-125: Skills merge service
     builder.Services.AddSingleton<ISkillMerger, SkillMerger>();
 
+    // NEX-43: Prompt assembly pipeline
+    builder.Services.AddSingleton<ISkillSelector, SkillSelector>();
+    builder.Services.AddSingleton<IProjectHistoryInjector, ProjectHistoryInjector>();
+    builder.Services.AddSingleton<IPromptAssembler, PromptAssembler>();
+
     // NEX-4: Docker integration & worker launching
     builder.Services.AddSingleton<IDockerService, DockerService>();
     builder.Services.AddSingleton<IWorkerOutputStreamer, WorkerOutputStreamer>();

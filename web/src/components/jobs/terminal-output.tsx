@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, type MutableRefObject } from "react";
+import Ansi from "ansi-to-react";
 import { useSignalR } from "@/lib/signalr";
 import { stripAnsi } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -158,7 +159,7 @@ export function TerminalOutput({
             key={chunk.sequence}
             className={
               chunk.streamType === "stderr"
-                ? "text-status-error whitespace-pre-wrap break-all"
+                ? "border-l-2 border-status-error pl-2 whitespace-pre-wrap break-all"
                 : "text-foreground whitespace-pre-wrap break-all"
             }
           >
@@ -168,7 +169,7 @@ export function TerminalOutput({
                 query={searchQuery}
               />
             ) : (
-              stripAnsi(chunk.content)
+              <Ansi>{chunk.content}</Ansi>
             )}
           </div>
         ))}

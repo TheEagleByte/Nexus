@@ -18,6 +18,7 @@ public class JobAssignHandlerTests
     private readonly Mock<IJobLifecycleService> _lifecycleServiceMock;
     private readonly Mock<IJobArtifactService> _jobArtifactsMock;
     private readonly Mock<ISkillMerger> _skillMergerMock;
+    private readonly Mock<IPromptAssembler> _promptAssemblerMock;
     private readonly ActiveJobTracker _activeJobTracker;
     private readonly Mock<IHostApplicationLifetime> _appLifetimeMock;
     private readonly JobAssignHandler _sut;
@@ -34,9 +35,14 @@ public class JobAssignHandlerTests
         _skillMergerMock.Setup(m => m.MergeSkillsAsync(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string?)null);
+        _promptAssemblerMock = new Mock<IPromptAssembler>();
         _activeJobTracker = new ActiveJobTracker();
         _appLifetimeMock = new Mock<IHostApplicationLifetime>();
         _appLifetimeMock.Setup(a => a.ApplicationStopping).Returns(CancellationToken.None);
+
+        _promptAssemblerMock
+            .Setup(m => m.AssembleAsync(It.IsAny<PromptAssemblyContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("assembled prompt");
 
         var config = new SpokeConfiguration
         {
@@ -51,6 +57,7 @@ public class JobAssignHandlerTests
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
             _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),
@@ -122,6 +129,7 @@ public class JobAssignHandlerTests
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
             _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),
@@ -204,6 +212,7 @@ public class JobAssignHandlerTests
             _lifecycleServiceMock.Object,
             _jobArtifactsMock.Object,
             _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
             _activeJobTracker,
             _appLifetimeMock.Object,
             Options.Create(config),
@@ -236,5 +245,59 @@ public class JobAssignHandlerTests
             JobStatus.Queued, JobStatus.Failed,
             It.Is<string>(s => s.Contains("capacity")),
             null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CallsPromptAssembler()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var assignment = new JobAssignment(
+            Guid.NewGuid(), Guid.NewGuid(), JobType.Implement, "build it",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-3" }),
+            false, DateTimeOffset.UtcNow);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-3"))
+            .ReturnsAsync(new ProjectInfo("TEST-3", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-3"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-3"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-3"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("TEST-3"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-3", ".meta"));
+
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-3", assignment.JobId))
+            .ReturnsAsync(Path.Combine(Path.GetTempPath(), "projects", "TEST-3", "jobs", $"job-{assignment.JobId}"));
+
+        _dockerServiceMock.Setup(m => m.LaunchWorkerAsync(It.IsAny<WorkerLaunchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("container-abc");
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        _promptAssemblerMock.Verify(
+            m => m.AssembleAsync(
+                It.Is<PromptAssemblyContext>(ctx =>
+                    ctx.JobId == assignment.JobId &&
+                    ctx.ProjectKey == "TEST-3" &&
+                    ctx.HubContext == "build it"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

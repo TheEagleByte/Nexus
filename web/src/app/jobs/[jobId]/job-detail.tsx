@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TerminalOutput } from "@/components/jobs/terminal-output";
 import { ApprovalGate } from "@/components/jobs/approval-gate";
-import { cancelJob } from "@/lib/api-client";
+import { JobSummary } from "@/components/jobs/job-summary";
+import { ConfirmDialog } from "@/components/jobs/confirm-dialog";
+import { cancelJob, retryJob } from "@/lib/api-client";
 import { useSignalR } from "@/lib/signalr";
 import {
   jobStatusColor,
@@ -46,6 +48,9 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
   const router = useRouter();
   const { jobUpdates } = useSignalR();
   const [cancelling, setCancelling] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showRetryConfirm, setShowRetryConfirm] = useState(false);
   const outputContentRef = useRef<() => string>(() =>
     initialOutput.chunks.map((c) => c.content).join("")
   );
@@ -53,6 +58,8 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
   // Merge real-time status
   const jobUpdate = jobUpdates.get(job.id);
   const currentStatus = jobUpdate?.newStatus ?? job.status;
+
+  const currentSummary = jobUpdate?.summary ?? job.summary;
 
   const TypeIcon = JOB_TYPE_ICONS[job.type] ?? Terminal;
   const isCancellable =
@@ -69,6 +76,7 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
     try {
       await cancelJob(job.id);
       toast.success("Job cancelled");
+      setShowCancelConfirm(false);
       router.refresh();
     } catch (err) {
       toast.error("Failed to cancel job", {
@@ -79,12 +87,32 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
     }
   }
 
-  function handleCopyOutput() {
-    const text = outputContentRef.current();
-    navigator.clipboard.writeText(text).then(
-      () => toast.success("Output copied to clipboard"),
-      () => toast.error("Failed to copy output")
-    );
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      const newJob = await retryJob(job.projectId, job.type);
+      toast.success(`Retry job created: ${jobTypeLabel(job.type)}`, {
+        description: `Job ${newJob.id.slice(0, 8)} is now ${newJob.status.replace("_", " ")}`,
+      });
+      setShowRetryConfirm(false);
+      router.push(`/jobs/${newJob.id}`);
+    } catch (err) {
+      toast.error("Failed to retry job", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  async function handleCopyOutput() {
+    try {
+      const text = outputContentRef.current();
+      await navigator?.clipboard?.writeText(text);
+      toast.success("Output copied to clipboard");
+    } catch {
+      toast.error("Failed to copy output");
+    }
   }
 
   return (
@@ -167,10 +195,8 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
       </div>
 
       {/* Summary */}
-      {job.summary && (
-        <div className="rounded border border-border bg-card p-3">
-          <p className="text-sm text-foreground">{job.summary}</p>
-        </div>
+      {isTerminal && currentSummary && (
+        <JobSummary summary={currentSummary} />
       )}
 
       {/* Approval Gate */}
@@ -207,23 +233,53 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
       </div>
 
       {/* Actions */}
-      {isCancellable && (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={cancelling}
-            className="border-status-error text-status-error hover:bg-status-error/10"
-          >
-            {cancelling ? (
-              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-            ) : (
+      {(isCancellable || isTerminal) && (
+      <div className="flex gap-2">
+        {isCancellable && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCancelConfirm(true)}
+              className="border-status-error text-status-error hover:bg-status-error/10"
+            >
               <XCircle className="w-4 h-4 mr-1" />
-            )}
-            Cancel Job
-          </Button>
-        </div>
+              Cancel Job
+            </Button>
+            <ConfirmDialog
+              open={showCancelConfirm}
+              onOpenChange={setShowCancelConfirm}
+              title="Cancel Job"
+              description="Are you sure you want to cancel this job? This cannot be undone."
+              confirmLabel="Cancel Job"
+              confirmVariant="destructive"
+              onConfirm={handleCancel}
+              loading={cancelling}
+            />
+          </>
+        )}
+        {isTerminal && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRetryConfirm(true)}
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Retry Job
+            </Button>
+            <ConfirmDialog
+              open={showRetryConfirm}
+              onOpenChange={setShowRetryConfirm}
+              title="Retry Job"
+              description={`Create a new ${jobTypeLabel(job.type)} job for this project?`}
+              confirmLabel="Retry"
+              onConfirm={handleRetry}
+              loading={retrying}
+            />
+          </>
+        )}
+      </div>
       )}
     </div>
   );

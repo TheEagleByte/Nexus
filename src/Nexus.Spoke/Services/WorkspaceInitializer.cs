@@ -23,6 +23,7 @@ public class WorkspaceInitializer(
 
         await MemoryInitializer.InitializeAsync(Path.Combine(basePath, "memories"), logger, cancellationToken);
         await SkillsInitializer.InitializeAsync(Path.Combine(basePath, "skills"), config.Value, logger, cancellationToken);
+        await TemplateInitializer.InitializeAsync(Path.Combine(basePath, "templates"), logger, cancellationToken);
 
         logger.LogInformation("Workspace initialization complete");
     }
