@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type MutableRefObject } from "react";
 import { useSignalR } from "@/lib/signalr";
 import { stripAnsi } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,14 @@ interface TerminalOutputProps {
   jobId: string;
   initialChunks: OutputChunk[];
   isComplete: boolean;
+  onContentRef?: MutableRefObject<() => string>;
 }
 
 export function TerminalOutput({
   jobId,
   initialChunks,
   isComplete: initialIsComplete,
+  onContentRef,
 }: TerminalOutputProps) {
   const [chunks, setChunks] = useState<OutputChunk[]>(initialChunks);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -58,6 +60,13 @@ export function TerminalOutput({
     return () => unsubscribeJobOutput(jobId, handleChunk);
   }, [jobId, subscribeJobOutput, unsubscribeJobOutput]);
 
+  // Keep content ref in sync for external copy
+  useEffect(() => {
+    if (onContentRef) {
+      onContentRef.current = () => chunks.map((c) => stripAnsi(c.content)).join("");
+    }
+  }, [chunks, onContentRef]);
+
   // Auto-scroll
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
@@ -89,7 +98,7 @@ export function TerminalOutput({
   const truncated = chunks.length >= MAX_CHUNKS;
 
   return (
-    <div className="flex flex-col rounded-md border border-border bg-background overflow-hidden">
+    <div className="relative flex flex-col rounded-md border border-border bg-background overflow-hidden">
       {/* Terminal header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-surface text-xs">
         <div className="flex items-center gap-2">

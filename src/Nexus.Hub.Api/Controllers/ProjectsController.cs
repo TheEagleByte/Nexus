@@ -46,8 +46,15 @@ public class ProjectsController(
         var spokeNames = new Dictionary<Guid, string>();
         foreach (var spokeId in spokeIds)
         {
-            var spoke = await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
-            if (spoke is not null) spokeNames[spokeId] = spoke.Name;
+            try
+            {
+                var spoke = await _spokeService.GetSpokeAsync(spokeId, cancellationToken);
+                if (spoke is not null) spokeNames[spokeId] = spoke.Name;
+            }
+            catch (Domain.Exceptions.NotFoundException)
+            {
+                // Orphaned project — spoke was deleted
+            }
         }
 
         var response = new ProjectListResponse
@@ -126,7 +133,17 @@ public class ProjectsController(
     {
         var project = await _projectService.GetProjectAsync(id, cancellationToken);
 
-        var spoke = await _spokeService.GetSpokeAsync(project.SpokeId, cancellationToken);
+        string spokeName;
+        try
+        {
+            var spoke = await _spokeService.GetSpokeAsync(project.SpokeId, cancellationToken);
+            spokeName = spoke!.Name;
+        }
+        catch (Domain.Exceptions.NotFoundException)
+        {
+            spokeName = "";
+        }
+
         var activeJobCount = await _jobService.GetJobCountAsync(projectId: id, status: JobStatus.Running, cancellationToken: cancellationToken);
         var totalJobCount = await _jobService.GetJobCountAsync(projectId: id, cancellationToken: cancellationToken);
 
@@ -140,7 +157,7 @@ public class ProjectsController(
             Summary = project.Summary,
             CreatedAt = project.CreatedAt,
             UpdatedAt = project.UpdatedAt,
-            SpokeName = spoke!.Name,
+            SpokeName = spokeName,
             ActiveJobCount = activeJobCount,
             TotalJobCount = totalJobCount
         };

@@ -99,7 +99,7 @@ export function ProjectDetail({ project, initialJobs }: ProjectDetailProps) {
           projectName={project.name}
         />
         <Link
-          href={`/jobs?project=${project.id}`}
+          href="/jobs"
           className="inline-flex items-center gap-1 h-7 px-2.5 text-[0.8rem] font-medium rounded-[min(var(--radius-md),12px)] border border-input bg-transparent cursor-pointer hover:bg-muted hover:text-foreground transition-all dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
         >
           All Jobs

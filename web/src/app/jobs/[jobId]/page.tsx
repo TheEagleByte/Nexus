@@ -21,7 +21,7 @@ export default async function JobDetailPage({
     jobId,
     chunks: [],
     totalChunks: 0,
-    limit: 200,
+    limit: 100,
     offset: 0,
     isComplete: false,
   };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,9 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
   const router = useRouter();
   const { jobUpdates } = useSignalR();
   const [cancelling, setCancelling] = useState(false);
+  const outputContentRef = useRef<() => string>(() =>
+    initialOutput.chunks.map((c) => c.content).join("")
+  );
 
   // Merge real-time status
   const jobUpdate = jobUpdates.get(job.id);
@@ -77,7 +80,7 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
   }
 
   function handleCopyOutput() {
-    const text = initialOutput.chunks.map((c) => c.content).join("");
+    const text = outputContentRef.current();
     navigator.clipboard.writeText(text).then(
       () => toast.success("Output copied to clipboard"),
       () => toast.error("Failed to copy output")
@@ -199,6 +202,7 @@ export function JobDetail({ job, initialOutput }: JobDetailProps) {
           jobId={job.id}
           initialChunks={initialOutput.chunks}
           isComplete={isTerminal}
+          onContentRef={outputContentRef}
         />
       </div>
 

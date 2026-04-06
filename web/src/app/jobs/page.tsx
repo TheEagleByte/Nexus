@@ -11,7 +11,7 @@ export default async function JobsPage({
 
   const status = params.status;
   const type = params.type;
-  const limit = Math.min(Number(params.limit) || 20, 100);
+  const limit = Math.max(1, Math.min(Number(params.limit) || 20, 100));
   const offset = Math.max(Number(params.offset) || 0, 0);
 
   let jobs: JobResponse[] = [];

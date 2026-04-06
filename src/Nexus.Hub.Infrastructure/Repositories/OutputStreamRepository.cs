@@ -66,7 +66,12 @@ public class OutputStreamRepository(NexusDbContext context) : IOutputStreamRepos
     }
 
     public async Task<long> TotalBytesByJobAsync(Guid jobId, CancellationToken cancellationToken = default)
-        => await _context.OutputStreams
+    {
+        // Load content to compute actual UTF-8 byte count (Content.Length is char count)
+        var contents = await _context.OutputStreams
             .Where(o => o.JobId == jobId)
-            .SumAsync(o => (long)o.Content.Length, cancellationToken);
+            .Select(o => o.Content)
+            .ToListAsync(cancellationToken);
+        return contents.Sum(c => (long)System.Text.Encoding.UTF8.GetByteCount(c));
+    }
 }
