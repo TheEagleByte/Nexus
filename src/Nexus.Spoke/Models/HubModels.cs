@@ -42,7 +42,8 @@ public record SpokeHeartbeat(
     SpokeStatus Status,
     int ActiveJobCount,
     ResourceUsageDto ResourceUsage,
-    DateTimeOffset Timestamp
+    DateTimeOffset Timestamp,
+    Dictionary<string, string>? Metadata = null
 );
 
 public record ResourceUsageDto(

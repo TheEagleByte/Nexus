@@ -25,7 +25,7 @@ public class HeartbeatWorkerTests
         }
     };
 
-    private HeartbeatWorker CreateWorker(ILogger<HeartbeatWorker>? logger = null)
+    private HeartbeatWorker CreateWorker(ILogger<HeartbeatWorker>? logger = null, IRepoPoolService? repoPool = null)
     {
         _mockResourceMonitor.Setup(r => r.GetCurrentUsage())
             .Returns(new ResourceUsageDto(512, 25.0, 10240));
@@ -35,7 +35,8 @@ public class HeartbeatWorkerTests
             _mockConnection.Object,
             Options.Create(_config),
             _mockResourceMonitor.Object,
-            logger ?? NullLogger<HeartbeatWorker>.Instance);
+            logger ?? NullLogger<HeartbeatWorker>.Instance,
+            repoPool);
     }
 
     [Fact]
@@ -133,5 +134,51 @@ public class HeartbeatWorkerTests
             It.Is<It.IsAnyType>((o, _) => o.ToString()!.Contains("unreachable")),
             null,
             It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendHeartbeatAsync_WithRepoPool_IncludesMetadata()
+    {
+        _mockConnection.Setup(c => c.IsConnected).Returns(true);
+        var mockRepoPool = new Mock<IRepoPoolService>();
+        mockRepoPool.Setup(r => r.GetSyncStates())
+            .Returns(new Dictionary<string, RepoSyncState>
+            {
+                ["my-repo"] = new("my-repo", RepoSyncStatus.Synced, DateTimeOffset.UtcNow, null)
+            });
+
+        SpokeHeartbeat? captured = null;
+        _mockConnection.Setup(c => c.SendAsync("Heartbeat", It.IsAny<SpokeHeartbeat>(), It.IsAny<CancellationToken>()))
+            .Callback<string, SpokeHeartbeat, CancellationToken>((_, hb, _) => captured = hb)
+            .Returns(Task.CompletedTask);
+
+        var worker = CreateWorker(repoPool: mockRepoPool.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await worker.SendHeartbeatAsync(cts.Token);
+
+        Assert.NotNull(captured);
+        Assert.NotNull(captured.Metadata);
+        Assert.True(captured.Metadata.ContainsKey("repo:my-repo"));
+        Assert.Contains("Synced", captured.Metadata["repo:my-repo"]);
+    }
+
+    [Fact]
+    public async Task SendHeartbeatAsync_WithoutRepoPool_NoMetadata()
+    {
+        _mockConnection.Setup(c => c.IsConnected).Returns(true);
+
+        SpokeHeartbeat? captured = null;
+        _mockConnection.Setup(c => c.SendAsync("Heartbeat", It.IsAny<SpokeHeartbeat>(), It.IsAny<CancellationToken>()))
+            .Callback<string, SpokeHeartbeat, CancellationToken>((_, hb, _) => captured = hb)
+            .Returns(Task.CompletedTask);
+
+        var worker = CreateWorker();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await worker.SendHeartbeatAsync(cts.Token);
+
+        Assert.NotNull(captured);
+        Assert.Null(captured.Metadata);
     }
 }

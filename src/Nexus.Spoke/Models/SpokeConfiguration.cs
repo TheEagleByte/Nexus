@@ -9,6 +9,7 @@ public class SpokeConfiguration
     public JiraIntegrationConfig Jira { get; set; } = new();
     public ApprovalConfig Approval { get; set; } = new();
     public DockerConfig Docker { get; set; } = new();
+    public GitProviderConfig GitProvider { get; set; } = new();
 
     public class SpokeIdentityConfig
     {
@@ -88,5 +89,20 @@ public class SpokeConfiguration
         public long MemoryBytes { get; set; } = 8_589_934_592;
         public int CpuCount { get; set; } = 2;
         public long DiskLimitBytes { get; set; } = 107_374_182_400;
+    }
+
+    public class GitProviderConfig
+    {
+        public string Type { get; set; } = string.Empty;
+        public RepositoryConfig[] Repositories { get; set; } = [];
+        public string BranchTemplate { get; set; } = "nexus/{type}/{key}";
+        public int SyncIntervalSeconds { get; set; } = 300;
+    }
+
+    public class RepositoryConfig
+    {
+        public string Name { get; set; } = string.Empty;
+        public string RemoteUrl { get; set; } = string.Empty;
+        public string? DefaultBranch { get; set; }
     }
 }

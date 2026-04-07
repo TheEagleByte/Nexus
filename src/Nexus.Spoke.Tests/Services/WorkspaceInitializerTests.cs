@@ -82,6 +82,8 @@ public class WorkspaceInitializerTests : IDisposable
         Assert.True(Directory.Exists(Path.Combine(_tempDir, "projects")));
         Assert.True(Directory.Exists(Path.Combine(_tempDir, "logs")));
         Assert.True(Directory.Exists(Path.Combine(_tempDir, "templates")));
+        Assert.True(Directory.Exists(Path.Combine(_tempDir, "memories")));
+        Assert.True(Directory.Exists(Path.Combine(_tempDir, "repos")));
     }
 
     [Fact]

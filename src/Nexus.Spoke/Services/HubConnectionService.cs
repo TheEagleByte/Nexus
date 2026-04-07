@@ -118,6 +118,23 @@ public class HubConnectionService(
         if (cfg.Capabilities.Docker) capabilities.Add("docker");
         if (cfg.Capabilities.PrMonitoring) capabilities.Add("pr_monitoring");
 
+        var repos = cfg.GitProvider.Repositories
+            .Select(r => new RepositoryDto(r.Name, r.RemoteUrl))
+            .ToArray();
+
+        var jiraConfig = cfg.Capabilities.Jira
+            ? new JiraConfigDto(cfg.Jira.InstanceUrl, cfg.Jira.ProjectKeys)
+            : null;
+
+        var profile = new SpokeProfileDto(
+            DisplayName: cfg.Spoke.Name,
+            MachineDescription: $"{cfg.Spoke.Os}/{cfg.Spoke.Architecture}",
+            Repos: repos,
+            JiraConfig: jiraConfig,
+            Integrations: capabilities.ToArray(),
+            Description: $"Nexus Spoke - {cfg.Spoke.Name}"
+        );
+
         var registration = new SpokeRegistration(
             Name: cfg.Spoke.Name,
             Capabilities: capabilities.ToArray(),
@@ -128,7 +145,7 @@ public class HubConnectionService(
                 MaxConcurrentJobs: cfg.Approval.MaxConcurrentJobs,
                 HeartbeatIntervalSeconds: cfg.Approval.HeartbeatIntervalSeconds
             ),
-            Profile: null,
+            Profile: profile,
             Metadata: null
         );
 

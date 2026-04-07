@@ -8,7 +8,8 @@ public class HeartbeatWorker(
     IHubConnectionService connectionService,
     IOptions<SpokeConfiguration> config,
     ResourceMonitor resourceMonitor,
-    ILogger<HeartbeatWorker> logger) : BackgroundService
+    ILogger<HeartbeatWorker> logger,
+    IRepoPoolService? repoPool = null) : BackgroundService
 {
     internal static readonly TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(10);
@@ -69,12 +70,25 @@ public class HeartbeatWorker(
 
         var spokeId = connectionService.SpokeId ?? Guid.Empty;
 
+        Dictionary<string, string>? metadata = null;
+        if (repoPool is not null)
+        {
+            var states = repoPool.GetSyncStates();
+            if (states.Count > 0)
+            {
+                metadata = states.ToDictionary(
+                    kvp => $"repo:{kvp.Key}",
+                    kvp => $"{kvp.Value.Status}|{kvp.Value.LastSyncedAt?.ToString("O") ?? "never"}");
+            }
+        }
+
         var heartbeat = new SpokeHeartbeat(
             SpokeId: spokeId,
             Status: SpokeStatus.Online,  // Future: track actual busy/idle state
             ActiveJobCount: 0,            // Future: get from job tracking service
             ResourceUsage: resourceMonitor.GetCurrentUsage(),
-            Timestamp: DateTimeOffset.UtcNow
+            Timestamp: DateTimeOffset.UtcNow,
+            Metadata: metadata
         );
 
         await connectionService.SendAsync("Heartbeat", heartbeat, cancellationToken);
