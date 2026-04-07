@@ -200,6 +200,8 @@ public class RepoPoolServiceTests : IDisposable
     [InlineData("../escape")]
     [InlineData("repo/../../etc")]
     [InlineData("/absolute/path")]
+    [InlineData("repo/subdir")]
+    [InlineData("repo\\subdir")]
     public void GetRepoPath_PathTraversal_Throws(string name)
     {
         var service = CreateService();
@@ -221,6 +223,16 @@ public class RepoPoolServiceTests : IDisposable
         await service.InitializeAsync(CancellationToken.None);
 
         _mockGit.Verify(g => g.CloneAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_GitDisabled_NoOps()
+    {
+        _config.Capabilities.Git = false;
+        var service = CreateService();
+        await service.SyncAllAsync(CancellationToken.None);
+
+        _mockGit.Verify(g => g.FetchAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     public void Dispose()

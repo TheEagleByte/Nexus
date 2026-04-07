@@ -36,7 +36,8 @@ public class RepoPoolService(
 
             if (await gitService.IsGitRepoAsync(repoPath, ct))
             {
-                _syncStates[repo.Name] = new RepoSyncState(repo.Name, RepoSyncStatus.Synced, null, null);
+                var existing = _syncStates.GetValueOrDefault(repo.Name);
+                _syncStates[repo.Name] = new RepoSyncState(repo.Name, RepoSyncStatus.Synced, existing?.LastSyncedAt, null);
                 logger.LogDebug("Repository {Name} already exists at {Path}", repo.Name, repoPath);
                 continue;
             }
