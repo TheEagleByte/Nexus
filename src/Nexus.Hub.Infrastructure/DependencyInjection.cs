@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IOutputStreamRepository, OutputStreamRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddScoped<IPendingActionRepository, PendingActionRepository>();
 
         // Services
         services.AddScoped<ISpokeService, SpokeService>();
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IJobService, JobService>();
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IPendingActionService, PendingActionService>();
 
         return services;
     }
