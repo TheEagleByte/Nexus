@@ -48,3 +48,19 @@ public enum ConversationRole
     User,
     Assistant
 }
+
+public enum PendingActionType
+{
+    PlanReview,
+    PreExecution,
+    PostExecution,
+    PrReview
+}
+
+public enum PendingActionStatus
+{
+    Pending,
+    Approved,
+    Rejected,
+    Resolved
+}

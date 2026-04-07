@@ -14,6 +14,7 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<PendingAction> PendingActions => Set<PendingAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +27,7 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
         ConfigureAuditLog(modelBuilder);
         ConfigureConversation(modelBuilder);
         ConfigureConversationMessage(modelBuilder);
+        ConfigurePendingAction(modelBuilder);
     }
 
     private static void ConfigureSpoke(ModelBuilder modelBuilder)
@@ -205,6 +207,36 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
 
             entity.HasIndex(m => m.ConversationId);
             entity.HasIndex(m => m.Timestamp).IsDescending();
+        });
+    }
+
+    private static void ConfigurePendingAction(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PendingAction>(entity =>
+        {
+            entity.HasKey(pa => pa.Id);
+            entity.Property(pa => pa.Type).HasMaxLength(50).HasConversion<string>().IsRequired();
+            entity.Property(pa => pa.Status).HasMaxLength(50).HasConversion<string>().IsRequired();
+            entity.Property(pa => pa.Metadata).HasColumnType("jsonb");
+
+            entity.HasIndex(pa => pa.SpokeId);
+            entity.HasIndex(pa => pa.Priority);
+            entity.HasIndex(pa => new { pa.Status, pa.Priority });
+
+            entity.HasOne(pa => pa.Spoke)
+                .WithMany()
+                .HasForeignKey(pa => pa.SpokeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(pa => pa.Project)
+                .WithMany()
+                .HasForeignKey(pa => pa.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(pa => pa.Job)
+                .WithMany()
+                .HasForeignKey(pa => pa.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

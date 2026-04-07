@@ -73,8 +73,24 @@ public class SpokeConfiguration
         public DockerResourceLimitsConfig ResourceLimits { get; set; } = new();
         public int TimeoutSeconds { get; set; } = 14400;
         public string ContainerUser { get; set; } = "1000:1000";
-        public string NetworkMode { get; set; } = "none";
+        public string NetworkMode { get; set; } = "bridge";
         public bool ReadOnlyRootFs { get; set; } = true;
+        public CredentialsConfig Credentials { get; set; } = new();
+    }
+
+    public class CredentialsConfig
+    {
+        public GitCredentialsConfig Git { get; set; } = new();
+        public string GhToken { get; set; } = string.Empty;
+    }
+
+    public class GitCredentialsConfig
+    {
+        public string AuthMethod { get; set; } = "token";
+        public string SshKeyPath { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public string UserEmail { get; set; } = string.Empty;
     }
 
     public class DockerResourceLimitsConfig

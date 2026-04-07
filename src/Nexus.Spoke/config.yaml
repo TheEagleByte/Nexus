@@ -47,5 +47,13 @@ Docker:
     DiskLimitBytes: 107374182400  # 100GB
   TimeoutSeconds: 14400           # 4 hours
   ContainerUser: "1000:1000"
-  NetworkMode: "none"
+  NetworkMode: "bridge"
   ReadOnlyRootFs: true
+  Credentials:
+    Git:
+      AuthMethod: "ssh"                # "ssh" or "token"
+      SshKeyPath: "~/.ssh/id_ed25519"  # Used when AuthMethod is "ssh"
+      Token: ""                        # GitHub PAT or similar; must be non-empty when AuthMethod is "token"
+      UserName: "Your Name"
+      UserEmail: "you@example.com"
+    GhToken: ""                        # GitHub CLI token (for gh pr create, etc.)
