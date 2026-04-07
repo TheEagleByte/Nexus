@@ -16,6 +16,9 @@ public class PendingActionService(IPendingActionRepository pendingActionReposito
 
     public async Task<PendingAction> CreateAsync(Guid spokeId, Guid projectId, Guid jobId, PendingActionType type, int priority = 0, JsonDocument? metadata = null, CancellationToken cancellationToken = default)
     {
+        if (metadata is not null && metadata.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+            throw new Domain.Exceptions.ValidationException("Pending action metadata must be a JSON object.");
+
         var action = new PendingAction
         {
             Id = Guid.NewGuid(),

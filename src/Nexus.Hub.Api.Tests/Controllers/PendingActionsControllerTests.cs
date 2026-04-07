@@ -66,10 +66,10 @@ public class PendingActionsControllerTests
         };
 
         _serviceMock
-            .Setup(s => s.ListAsync(null, null, null, null, 50, 0, true, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListAsync(null, null, null, PendingActionStatus.Pending, 50, 0, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(actions);
         _serviceMock
-            .Setup(s => s.CountAsync(null, null, null, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.CountAsync(null, null, null, PendingActionStatus.Pending, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         var result = await _controller.ListAsync(cancellationToken: CancellationToken.None);
@@ -94,10 +94,10 @@ public class PendingActionsControllerTests
     {
         var spokeId = Guid.NewGuid();
         _serviceMock
-            .Setup(s => s.ListAsync(spokeId, null, PendingActionType.PrReview, null, 25, 5, true, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListAsync(spokeId, null, PendingActionType.PrReview, PendingActionStatus.Pending, 25, 5, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<PendingAction>());
         _serviceMock
-            .Setup(s => s.CountAsync(spokeId, null, PendingActionType.PrReview, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.CountAsync(spokeId, null, PendingActionType.PrReview, PendingActionStatus.Pending, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         var result = await _controller.ListAsync(gateType: PendingActionType.PrReview, spokeId: spokeId, limit: 25, offset: 5, cancellationToken: CancellationToken.None);
@@ -113,15 +113,15 @@ public class PendingActionsControllerTests
     public async Task ListAsync_AgeAscSort_PassesSortDescending()
     {
         _serviceMock
-            .Setup(s => s.ListAsync(null, null, null, null, 50, 0, false, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListAsync(null, null, null, PendingActionStatus.Pending, 50, 0, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<PendingAction>());
         _serviceMock
-            .Setup(s => s.CountAsync(null, null, null, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.CountAsync(null, null, null, PendingActionStatus.Pending, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         await _controller.ListAsync(sort: "age_asc", cancellationToken: CancellationToken.None);
 
-        _serviceMock.Verify(s => s.ListAsync(null, null, null, null, 50, 0, false, It.IsAny<CancellationToken>()), Times.Once);
+        _serviceMock.Verify(s => s.ListAsync(null, null, null, PendingActionStatus.Pending, 50, 0, false, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -138,10 +138,10 @@ public class PendingActionsControllerTests
     public async Task ListAsync_ClampsLimit()
     {
         _serviceMock
-            .Setup(s => s.ListAsync(null, null, null, null, 100, 0, true, It.IsAny<CancellationToken>()))
+            .Setup(s => s.ListAsync(null, null, null, PendingActionStatus.Pending, 100, 0, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<PendingAction>());
         _serviceMock
-            .Setup(s => s.CountAsync(null, null, null, null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.CountAsync(null, null, null, PendingActionStatus.Pending, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
         var result = await _controller.ListAsync(limit: 999, cancellationToken: CancellationToken.None);

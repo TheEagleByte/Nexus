@@ -48,8 +48,8 @@ public class PendingActionsController(
         // age_asc = newest first = descending CreatedAt
         var sortAscending = !string.Equals(sort, "age_asc", StringComparison.OrdinalIgnoreCase);
 
-        var actions = await _pendingActionService.ListAsync(spokeId, projectId, gateType, status: null, limit, offset, sortAscending, cancellationToken);
-        var total = await _pendingActionService.CountAsync(spokeId, projectId, gateType, status: null, cancellationToken);
+        var actions = await _pendingActionService.ListAsync(spokeId, projectId, gateType, status: PendingActionStatus.Pending, limit, offset, sortAscending, cancellationToken);
+        var total = await _pendingActionService.CountAsync(spokeId, projectId, gateType, status: PendingActionStatus.Pending, cancellationToken);
 
         var response = new PendingActionListResponse
         {
