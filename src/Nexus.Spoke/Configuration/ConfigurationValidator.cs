@@ -31,6 +31,8 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 failures.Add("Git:UserName is required when Git capability is enabled");
             if (string.IsNullOrWhiteSpace(options.Git.UserEmail))
                 failures.Add("Git:UserEmail is required when Git capability is enabled");
+            if (string.IsNullOrWhiteSpace(options.Git.DefaultBranch))
+                failures.Add("Git:DefaultBranch is required when Git capability is enabled");
             if (options.Git.TimeoutSeconds < 10)
                 failures.Add("Git:TimeoutSeconds must be at least 10");
         }

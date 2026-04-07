@@ -148,6 +148,17 @@ public class ConfigurationValidatorTests
     }
 
     [Fact]
+    public void Validate_GitEnabled_MissingDefaultBranch_Fails()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = true;
+        config.Git = new SpokeConfiguration.GitConfig { DefaultBranch = "" };
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Git:DefaultBranch is required", result.FailureMessage);
+    }
+
+    [Fact]
     public void Validate_GitEnabled_TimeoutTooLow_Fails()
     {
         var config = CreateValid();

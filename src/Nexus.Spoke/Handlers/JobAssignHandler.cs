@@ -143,8 +143,8 @@ public class JobAssignHandler(
             var jobTypeName = assignment.Type.ToString().ToLowerInvariant();
             var featureBranch = $"nexus/{jobTypeName}/{projectKey}";
 
-            logger.LogInformation("Preparing git workspace for {ProjectKey}: {RepoUrl} → {Branch}",
-                projectKey, repoUrl, featureBranch);
+            logger.LogInformation("Preparing git workspace for {ProjectKey}: {Branch}",
+                projectKey, featureBranch);
 
             await gitService.PrepareWorkspaceAsync(
                 repoPath, repoUrl, config.Value.Git.DefaultBranch, featureBranch, cancellationToken);
