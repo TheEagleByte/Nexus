@@ -54,6 +54,7 @@ public enum PendingActionType
     PlanReview,
     PreExecution,
     PostExecution,
+    SpokeQuestion,
     PrReview
 }
 

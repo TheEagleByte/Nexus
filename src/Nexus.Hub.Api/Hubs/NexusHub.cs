@@ -7,7 +7,7 @@ using Nexus.Hub.Domain.Services;
 
 namespace Nexus.Hub.Api.Hubs;
 
-public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, IMessageService messageService, IConversationService conversationService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
+public class NexusHub(ISpokeService spokeService, IJobService jobService, IProjectService projectService, IMessageService messageService, IConversationService conversationService, IPendingActionService pendingActionService, ILogger<NexusHub> logger) : Microsoft.AspNetCore.SignalR.Hub
 {
     private static readonly ConcurrentDictionary<string, Guid> ConnectionToSpokeMap = new();
 
@@ -16,6 +16,7 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
     private readonly IProjectService _projectService = projectService;
     private readonly IMessageService _messageService = messageService;
     private readonly IConversationService _conversationService = conversationService;
+    private readonly IPendingActionService _pendingActionService = pendingActionService;
     private readonly ILogger<NexusHub> _logger = logger;
 
     public override async Task OnConnectedAsync()
@@ -359,6 +360,52 @@ public class NexusHub(ISpokeService spokeService, IJobService jobService, IProje
         _logger.LogInformation(
             "Conversation message {MessageId} received from spoke {SpokeId} for conversation {ConversationId} (CorrelationId: {CorrelationId})",
             recorded.Id, spokeId, message.ConversationId, correlationId);
+    }
+
+    public async Task CreatePendingAction(CreatePendingActionRequest request)
+    {
+        var correlationId = Guid.NewGuid();
+
+        if (!ConnectionToSpokeMap.TryGetValue(Context.ConnectionId, out var spokeId))
+        {
+            _logger.LogWarning("CreatePendingAction from unmapped connection {ConnectionId} (CorrelationId: {CorrelationId})",
+                Context.ConnectionId, correlationId);
+            throw new HubException("Connection not established. Connect with a valid spokeId first.");
+        }
+
+        // Build metadata from request fields
+        var metadataDict = request.Metadata ?? new Dictionary<string, object>();
+        if (request.Summary is not null)
+            metadataDict["summary"] = request.Summary;
+        if (request.Description is not null)
+            metadataDict["description"] = request.Description;
+
+        var metadataDoc = System.Text.Json.JsonSerializer.SerializeToDocument(metadataDict);
+
+        var action = await _pendingActionService.CreateAsync(
+            spokeId, request.ProjectId, request.JobId, request.GateType, request.Priority, metadataDoc);
+
+        // Fetch the full action with nav props for the broadcast event
+        var fullAction = await _pendingActionService.GetAsync(action.Id);
+
+        var evt = new PendingActionEvent(
+            action.Id,
+            spokeId,
+            fullAction?.Spoke?.Name ?? string.Empty,
+            action.ProjectId,
+            fullAction?.Project?.ExternalKey,
+            action.Type,
+            request.Summary,
+            request.Description,
+            metadataDict,
+            action.CreatedAt
+        );
+
+        await Clients.All.SendAsync("PendingActionCreated", evt);
+
+        _logger.LogInformation(
+            "PendingAction {ActionId} created by spoke {SpokeId} (type: {GateType}, CorrelationId: {CorrelationId})",
+            action.Id, spokeId, request.GateType, correlationId);
     }
 
     public static async Task DispatchMessageToSpoke(

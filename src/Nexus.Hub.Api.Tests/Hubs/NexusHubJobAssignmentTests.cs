@@ -19,6 +19,7 @@ public class NexusHubJobAssignmentTests : IDisposable
     private readonly Mock<IProjectService> _projectServiceMock = new();
     private readonly Mock<IMessageService> _messageServiceMock = new();
     private readonly Mock<IConversationService> _conversationServiceMock = new();
+    private readonly Mock<IPendingActionService> _pendingActionServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
     private readonly Mock<IGroupManager> _groupsMock = new();
     private readonly Mock<IHubContext<NexusHub>> _hubContextMock = new();
@@ -28,7 +29,7 @@ public class NexusHubJobAssignmentTests : IDisposable
 
     public NexusHubJobAssignmentTests()
     {
-        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _conversationServiceMock.Object, _loggerMock.Object);
+        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _conversationServiceMock.Object, _pendingActionServiceMock.Object, _loggerMock.Object);
 
         _hubClientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_groupClientMock.Object);
         _hubContextMock.Setup(c => c.Clients).Returns(_hubClientsMock.Object);

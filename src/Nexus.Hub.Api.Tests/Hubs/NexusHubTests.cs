@@ -18,13 +18,14 @@ public class NexusHubTests : IDisposable
     private readonly Mock<IProjectService> _projectServiceMock = new();
     private readonly Mock<IMessageService> _messageServiceMock = new();
     private readonly Mock<IConversationService> _conversationServiceMock = new();
+    private readonly Mock<IPendingActionService> _pendingActionServiceMock = new();
     private readonly Mock<ILogger<NexusHub>> _loggerMock = new();
     private readonly Mock<IGroupManager> _groupsMock = new();
     private readonly NexusHub _hub;
 
     public NexusHubTests()
     {
-        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _conversationServiceMock.Object, _loggerMock.Object);
+        _hub = new NexusHub(_spokeServiceMock.Object, _jobServiceMock.Object, _projectServiceMock.Object, _messageServiceMock.Object, _conversationServiceMock.Object, _pendingActionServiceMock.Object, _loggerMock.Object);
 
         _jobServiceMock
             .Setup(s => s.ListJobsAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<JobStatus?>(), It.IsAny<JobType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
