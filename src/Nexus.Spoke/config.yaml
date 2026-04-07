@@ -50,3 +50,12 @@ Docker:
       UserName: "Your Name"
       UserEmail: "you@example.com"
     GhToken: ""                        # GitHub CLI token (for gh pr create, etc.)
+
+GitProvider:
+  Type: "github"                       # "github" or "gitlab"
+  SyncIntervalSeconds: 300             # Background sync interval (minimum 30)
+  BranchTemplate: "nexus/{type}/{key}" # Placeholders: {type}, {key}, {job-id}
+  Repositories: []
+    # - Name: "my-repo"
+    #   RemoteUrl: "git@github.com:org/my-repo.git"
+    #   DefaultBranch: "main"

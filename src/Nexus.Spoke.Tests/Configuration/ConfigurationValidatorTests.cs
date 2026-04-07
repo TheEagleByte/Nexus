@@ -215,4 +215,153 @@ public class ConfigurationValidatorTests
         var result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }
+
+    // --- GitProvider validation (NEX-187, NEX-190) ---
+
+    private static SpokeConfiguration CreateWithGitProvider() => new()
+    {
+        Spoke = new SpokeConfiguration.SpokeIdentityConfig { Id = "spoke-001", Name = "Test Spoke" },
+        Hub = new SpokeConfiguration.HubConnectionConfig { Url = "wss://hub.test/api/hub", Token = "test-token" },
+        Capabilities = new SpokeConfiguration.CapabilitiesConfig { Git = true },
+        GitProvider = new SpokeConfiguration.GitProviderConfig
+        {
+            Type = "github",
+            SyncIntervalSeconds = 300,
+            BranchTemplate = "nexus/{type}/{key}",
+            Repositories =
+            [
+                new SpokeConfiguration.RepositoryConfig
+                {
+                    Name = "my-repo",
+                    RemoteUrl = "git@github.com:org/my-repo.git"
+                }
+            ]
+        }
+    };
+
+    [Fact]
+    public void Validate_ValidGitProvider_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_InvalidType_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Type = "bitbucket";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:Type must be 'github' or 'gitlab'", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_EmptyType_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Type = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_RepoMissingName_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories[0].Name = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:Repositories[0]:Name is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_RepoMissingUrl_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories[0].RemoteUrl = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:Repositories[0]:RemoteUrl is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_RepoInvalidUrl_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories[0].RemoteUrl = "not-a-url";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("RemoteUrl must be a valid URL or SSH path", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_RepoHttpsUrl_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories[0].RemoteUrl = "https://github.com/org/repo.git";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_SyncIntervalTooLow_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.SyncIntervalSeconds = 10;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("SyncIntervalSeconds must be at least 30", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_BranchTemplate_MissingKeyPlaceholder_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.BranchTemplate = "nexus/{type}/{job-id}";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("BranchTemplate must contain {key} placeholder", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_BranchTemplate_InvalidChars_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.BranchTemplate = "nexus/{key} branch";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("invalid git branch characters", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_BranchTemplate_WithAllPlaceholders_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.BranchTemplate = "ai/{type}/{key}/{job-id}";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitCapabilityDisabled_SkipsGitProviderValidation()
+    {
+        var config = CreateValid();
+        config.Capabilities.Git = false;
+        config.GitProvider.Type = "invalid";
+        config.GitProvider.SyncIntervalSeconds = 1;
+        config.GitProvider.BranchTemplate = "no-key-here";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_GitProvider_EmptyRepoList_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories = [];
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
 }

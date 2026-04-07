@@ -51,6 +51,11 @@ try
     builder.Services.AddSingleton<IJobLifecycleService, JobLifecycleService>();
     builder.Services.AddSingleton<ActiveJobTracker>();
 
+    // NEX-187/188: Git repo pool management
+    builder.Services.AddSingleton<IGitService, GitCliService>();
+    builder.Services.AddSingleton<IRepoPoolService, RepoPoolService>();
+    builder.Services.AddHostedService<RepoPoolSyncWorker>();
+
     // NEX-140: Conversation runner
     builder.Services.AddSingleton<IConversationRunner, ConversationRunner>();
 
