@@ -77,7 +77,13 @@ public class RepoPoolService(
 
             if (!await gitService.IsGitRepoAsync(repoPath, ct))
             {
-                logger.LogWarning("Repository {Name} not found at {Path}, skipping sync", repo.Name, repoPath);
+                logger.LogWarning("Repository {Name} not found at {Path}, attempting re-clone", repo.Name, repoPath);
+                _syncStates[repo.Name] = new RepoSyncState(repo.Name, RepoSyncStatus.Cloning, null, null);
+
+                var cloneSuccess = await gitService.CloneAsync(repo.RemoteUrl, repoPath, repo.DefaultBranch, ct);
+                _syncStates[repo.Name] = cloneSuccess
+                    ? new RepoSyncState(repo.Name, RepoSyncStatus.Synced, DateTimeOffset.UtcNow, null)
+                    : new RepoSyncState(repo.Name, RepoSyncStatus.CloneFailed, null, "Clone failed");
                 continue;
             }
 
@@ -89,7 +95,9 @@ public class RepoPoolService(
                 continue;
             }
 
-            var branch = repo.DefaultBranch ?? "main";
+            var branch = string.IsNullOrWhiteSpace(repo.DefaultBranch)
+                ? await gitService.GetCurrentBranchAsync(repoPath, ct) ?? "main"
+                : repo.DefaultBranch;
             var ffSuccess = await gitService.FastForwardAsync(repoPath, branch, ct);
             if (ffSuccess)
             {

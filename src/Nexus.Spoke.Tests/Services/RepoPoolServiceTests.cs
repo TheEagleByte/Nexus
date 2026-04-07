@@ -105,18 +105,37 @@ public class RepoPoolServiceTests : IDisposable
             .ReturnsAsync(true);
         _mockGit.Setup(g => g.FastForwardAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        // repo-b has no DefaultBranch, so GetCurrentBranchAsync is called
+        _mockGit.Setup(g => g.GetCurrentBranchAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("develop");
 
         var service = CreateService();
         await service.SyncAllAsync(CancellationToken.None);
 
         _mockGit.Verify(g => g.FetchAsync(It.Is<string>(p => p.EndsWith("repo-a")), It.IsAny<CancellationToken>()), Times.Once);
         _mockGit.Verify(g => g.FastForwardAsync(It.Is<string>(p => p.EndsWith("repo-a")), "main", It.IsAny<CancellationToken>()), Times.Once);
-        // repo-b has no DefaultBranch set, should default to "main"
-        _mockGit.Verify(g => g.FastForwardAsync(It.Is<string>(p => p.EndsWith("repo-b")), "main", It.IsAny<CancellationToken>()), Times.Once);
+        // repo-b has no DefaultBranch set, uses detected branch
+        _mockGit.Verify(g => g.FastForwardAsync(It.Is<string>(p => p.EndsWith("repo-b")), "develop", It.IsAny<CancellationToken>()), Times.Once);
 
         var states = service.GetSyncStates();
         Assert.Equal(RepoSyncStatus.Synced, states["repo-a"].Status);
         Assert.NotNull(states["repo-a"].LastSyncedAt);
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_MissingRepo_AttemptsReClone()
+    {
+        _mockGit.Setup(g => g.IsGitRepoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _mockGit.Setup(g => g.CloneAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService();
+        await service.SyncAllAsync(CancellationToken.None);
+
+        _mockGit.Verify(g => g.CloneAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        var states = service.GetSyncStates();
+        Assert.Equal(RepoSyncStatus.Synced, states["repo-a"].Status);
     }
 
     [Fact]

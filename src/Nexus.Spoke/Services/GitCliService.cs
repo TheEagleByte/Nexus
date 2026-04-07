@@ -134,14 +134,17 @@ public class GitCliService(
         else if (string.Equals(gitCreds.AuthMethod, "token", StringComparison.OrdinalIgnoreCase) &&
                  !string.IsNullOrWhiteSpace(gitCreds.Token))
         {
-            // Pass token via env var; askpass script reads it (no secrets on disk)
+            // Pass token via env var; askpass script reads it (no secrets on disk).
+            // Git calls GIT_ASKPASS with a prompt arg like "Username for..." or "Password for...".
+            // For PAT auth: username = x-access-token, password = the token.
             startInfo.Environment["NEXUS_GIT_TOKEN"] = gitCreds.Token;
 
             if (OperatingSystem.IsWindows())
             {
                 var askPassScript = Path.Combine(Path.GetTempPath(), "nexus-git-askpass.cmd");
                 if (!File.Exists(askPassScript))
-                    File.WriteAllText(askPassScript, "@echo %NEXUS_GIT_TOKEN%\n");
+                    File.WriteAllText(askPassScript,
+                        "@echo off\r\necho %1 | findstr /I \"username\" >nul && (echo x-access-token) || (echo %NEXUS_GIT_TOKEN%)\r\n");
                 startInfo.Environment["GIT_ASKPASS"] = askPassScript;
             }
             else
@@ -149,7 +152,8 @@ public class GitCliService(
                 var askPassScript = Path.Combine(Path.GetTempPath(), "nexus-git-askpass.sh");
                 if (!File.Exists(askPassScript))
                 {
-                    File.WriteAllText(askPassScript, "#!/bin/sh\necho \"$NEXUS_GIT_TOKEN\"\n");
+                    File.WriteAllText(askPassScript,
+                        "#!/bin/sh\ncase \"$1\" in *sername*) echo x-access-token;; *) echo \"$NEXUS_GIT_TOKEN\";; esac\n");
                     File.SetUnixFileMode(askPassScript,
                         UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 }
