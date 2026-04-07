@@ -20,6 +20,7 @@ public class RepoPoolServiceTests : IDisposable
 
         _config = new SpokeConfiguration
         {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Git = true },
             Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = _tempDir },
             GitProvider = new SpokeConfiguration.GitProviderConfig
             {
@@ -172,7 +173,35 @@ public class RepoPoolServiceTests : IDisposable
     {
         var service = CreateService();
         var path = service.GetRepoPath("my-repo");
-        Assert.Equal(Path.Combine(_tempDir, "repos", "my-repo"), path);
+        var expected = Path.GetFullPath(Path.Combine(_tempDir, "repos", "my-repo"));
+        Assert.Equal(expected, path);
+    }
+
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("repo/../../etc")]
+    [InlineData("/absolute/path")]
+    public void GetRepoPath_PathTraversal_Throws(string name)
+    {
+        var service = CreateService();
+        Assert.Throws<ArgumentException>(() => service.GetRepoPath(name));
+    }
+
+    [Fact]
+    public void GetRepoPath_EmptyName_Throws()
+    {
+        var service = CreateService();
+        Assert.Throws<ArgumentException>(() => service.GetRepoPath(""));
+    }
+
+    [Fact]
+    public async Task InitializeAsync_GitDisabled_NoOps()
+    {
+        _config.Capabilities.Git = false;
+        var service = CreateService();
+        await service.InitializeAsync(CancellationToken.None);
+
+        _mockGit.Verify(g => g.CloneAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     public void Dispose()

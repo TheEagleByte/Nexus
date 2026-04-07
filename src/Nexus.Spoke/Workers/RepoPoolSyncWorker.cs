@@ -11,8 +11,22 @@ public class RepoPoolSyncWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!config.Value.Capabilities.Git)
+        {
+            logger.LogInformation("Git capability disabled, RepoPoolSyncWorker exiting");
+            return;
+        }
+
         logger.LogInformation("RepoPoolSyncWorker starting, performing initial clone");
-        await repoPool.InitializeAsync(stoppingToken);
+
+        try
+        {
+            await repoPool.InitializeAsync(stoppingToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Repo pool initialization failed, continuing to sync loop");
+        }
 
         var intervalSeconds = Math.Max(30, config.Value.GitProvider.SyncIntervalSeconds);
         var interval = TimeSpan.FromSeconds(intervalSeconds);

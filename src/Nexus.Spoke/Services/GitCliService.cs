@@ -12,10 +12,14 @@ public class GitCliService(
 
     public async Task<bool> CloneAsync(string remoteUrl, string localPath, string? branch = null, CancellationToken ct = default)
     {
-        var args = "clone --single-branch";
+        var args = new List<string> { "clone", "--single-branch" };
         if (!string.IsNullOrWhiteSpace(branch))
-            args += $" --branch {branch}";
-        args += $" {remoteUrl} {localPath}";
+        {
+            args.Add("--branch");
+            args.Add(branch);
+        }
+        args.Add(remoteUrl);
+        args.Add(localPath);
 
         var (exitCode, _, stdErr) = await RunGitAsync(args, workingDirectory: null, ct);
         if (exitCode != 0)
@@ -28,7 +32,7 @@ public class GitCliService(
 
     public async Task<bool> FetchAsync(string repoPath, CancellationToken ct = default)
     {
-        var (exitCode, _, stdErr) = await RunGitAsync("fetch origin", repoPath, ct);
+        var (exitCode, _, stdErr) = await RunGitAsync(["fetch", "origin"], repoPath, ct);
         if (exitCode != 0)
         {
             logger.LogWarning("git fetch failed in {Path}: {Error}", repoPath, stdErr);
@@ -39,7 +43,7 @@ public class GitCliService(
 
     public async Task<bool> FastForwardAsync(string repoPath, string branch, CancellationToken ct = default)
     {
-        var (exitCode, _, stdErr) = await RunGitAsync($"merge --ff-only origin/{branch}", repoPath, ct);
+        var (exitCode, _, stdErr) = await RunGitAsync(["merge", "--ff-only", $"origin/{branch}"], repoPath, ct);
         if (exitCode != 0)
         {
             logger.LogWarning("git fast-forward failed in {Path} for {Branch}: {Error}", repoPath, branch, stdErr);
@@ -50,7 +54,7 @@ public class GitCliService(
 
     public async Task<string?> GetCurrentBranchAsync(string repoPath, CancellationToken ct = default)
     {
-        var (exitCode, stdOut, _) = await RunGitAsync("rev-parse --abbrev-ref HEAD", repoPath, ct);
+        var (exitCode, stdOut, _) = await RunGitAsync(["rev-parse", "--abbrev-ref", "HEAD"], repoPath, ct);
         if (exitCode != 0)
             return null;
         return stdOut.Trim();
@@ -60,22 +64,24 @@ public class GitCliService(
     {
         if (!Directory.Exists(path))
             return false;
-        var (exitCode, _, _) = await RunGitAsync("rev-parse --is-inside-work-tree", path, ct);
+        var (exitCode, _, _) = await RunGitAsync(["rev-parse", "--is-inside-work-tree"], path, ct);
         return exitCode == 0;
     }
 
     internal async Task<(int ExitCode, string StdOut, string StdErr)> RunGitAsync(
-        string arguments, string? workingDirectory, CancellationToken ct)
+        IReadOnlyList<string> arguments, string? workingDirectory, CancellationToken ct)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = "git",
-            Arguments = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        foreach (var arg in arguments)
+            startInfo.ArgumentList.Add(arg);
 
         if (!string.IsNullOrEmpty(workingDirectory))
             startInfo.WorkingDirectory = workingDirectory;
@@ -102,13 +108,14 @@ public class GitCliService(
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            logger.LogWarning("git {Args} timed out after {Timeout}s", arguments, CommandTimeout.TotalSeconds);
+            logger.LogWarning("git {Args} timed out after {Timeout}s",
+                string.Join(' ', arguments), CommandTimeout.TotalSeconds);
             TryKillProcess(process);
             return (-1, string.Empty, "Command timed out");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Failed to run git {Args}", arguments);
+            logger.LogWarning(ex, "Failed to run git {Args}", string.Join(' ', arguments));
             return (-1, string.Empty, ex.Message);
         }
     }
@@ -127,13 +134,14 @@ public class GitCliService(
         else if (string.Equals(gitCreds.AuthMethod, "token", StringComparison.OrdinalIgnoreCase) &&
                  !string.IsNullOrWhiteSpace(gitCreds.Token))
         {
-            // Use GIT_ASKPASS with an inline script to provide the token
+            // Pass token via env var; askpass script reads it (no secrets on disk)
+            startInfo.Environment["NEXUS_GIT_TOKEN"] = gitCreds.Token;
+
             if (OperatingSystem.IsWindows())
             {
-                // On Windows, create a small script that echoes the token
                 var askPassScript = Path.Combine(Path.GetTempPath(), "nexus-git-askpass.cmd");
                 if (!File.Exists(askPassScript))
-                    File.WriteAllText(askPassScript, $"@echo {gitCreds.Token}\n");
+                    File.WriteAllText(askPassScript, "@echo %NEXUS_GIT_TOKEN%\n");
                 startInfo.Environment["GIT_ASKPASS"] = askPassScript;
             }
             else
@@ -141,7 +149,7 @@ public class GitCliService(
                 var askPassScript = Path.Combine(Path.GetTempPath(), "nexus-git-askpass.sh");
                 if (!File.Exists(askPassScript))
                 {
-                    File.WriteAllText(askPassScript, $"#!/bin/sh\necho '{gitCreds.Token}'\n");
+                    File.WriteAllText(askPassScript, "#!/bin/sh\necho \"$NEXUS_GIT_TOKEN\"\n");
                     File.SetUnixFileMode(askPassScript,
                         UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 }

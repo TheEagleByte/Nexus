@@ -13,6 +13,12 @@ public class RepoPoolService(
 
     public async Task InitializeAsync(CancellationToken ct)
     {
+        if (!config.Value.Capabilities.Git)
+        {
+            logger.LogDebug("Git capability disabled, skipping repo pool initialization");
+            return;
+        }
+
         var repos = config.Value.GitProvider.Repositories;
         if (repos.Length == 0)
         {
@@ -54,6 +60,8 @@ public class RepoPoolService(
 
     public async Task SyncAllAsync(CancellationToken ct)
     {
+        if (!config.Value.Capabilities.Git) return;
+
         var repos = config.Value.GitProvider.Repositories;
         if (repos.Length == 0) return;
 
@@ -64,6 +72,8 @@ public class RepoPoolService(
             if (ct.IsCancellationRequested) break;
 
             var repoPath = GetRepoPath(repo.Name);
+
+            _syncStates[repo.Name] = new RepoSyncState(repo.Name, RepoSyncStatus.Syncing, null, null);
 
             if (!await gitService.IsGitRepoAsync(repoPath, ct))
             {
@@ -97,7 +107,21 @@ public class RepoPoolService(
 
     public string GetRepoPath(string repoName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoName);
+
+        if (Path.IsPathRooted(repoName) ||
+            repoName.Contains("..") ||
+            repoName.Contains(Path.DirectorySeparatorChar) ||
+            repoName.Contains(Path.AltDirectorySeparatorChar))
+            throw new ArgumentException($"Invalid repository name: {repoName}", nameof(repoName));
+
         var basePath = WorkspaceInitializer.ResolveBasePath(config.Value);
-        return Path.Combine(basePath, "repos", repoName);
+        var reposRoot = Path.GetFullPath(Path.Combine(basePath, "repos"));
+        var candidate = Path.GetFullPath(Path.Combine(reposRoot, repoName));
+
+        if (!candidate.StartsWith(reposRoot, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"Repository name escapes repo pool root: {repoName}", nameof(repoName));
+
+        return candidate;
     }
 }

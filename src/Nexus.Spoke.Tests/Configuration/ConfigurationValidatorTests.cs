@@ -344,6 +344,19 @@ public class ConfigurationValidatorTests
         Assert.True(result.Succeeded);
     }
 
+    [Theory]
+    [InlineData("nexus/{key}.lock")]
+    [InlineData("nexus/{key}.")]
+    [InlineData("nexus/{key}/")]
+    public void Validate_BranchTemplate_InvalidEnding_Fails(string template)
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.BranchTemplate = template;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("must not end with", result.FailureMessage);
+    }
+
     [Fact]
     public void Validate_GitCapabilityDisabled_SkipsGitProviderValidation()
     {

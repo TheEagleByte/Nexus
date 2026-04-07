@@ -19,6 +19,7 @@ public enum RepoSyncStatus
 {
     Pending,
     Cloning,
+    Syncing,
     Synced,
     SyncFailed,
     CloneFailed

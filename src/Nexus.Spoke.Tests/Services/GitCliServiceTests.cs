@@ -82,14 +82,15 @@ public class GitCliServiceTests : IDisposable
     public async Task CloneAsync_InvalidUrl_ReturnsFalse()
     {
         var target = Path.Combine(_tempDir, "clone-target");
-        var result = await _service.CloneAsync("https://invalid.example.com/no-repo.git", target);
+        var missingRemote = new Uri(Path.Combine(_tempDir, "missing-remote")).AbsoluteUri;
+        var result = await _service.CloneAsync(missingRemote, target);
         Assert.False(result);
     }
 
     [Fact]
     public async Task RunGitAsync_ReturnsExitCodeAndOutput()
     {
-        var (exitCode, stdOut, _) = await _service.RunGitAsync("--version", null, CancellationToken.None);
+        var (exitCode, stdOut, _) = await _service.RunGitAsync(["--version"], null, CancellationToken.None);
         Assert.Equal(0, exitCode);
         Assert.Contains("git version", stdOut);
     }

@@ -76,7 +76,8 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 if (string.IsNullOrWhiteSpace(repo.RemoteUrl))
                     failures.Add($"GitProvider:Repositories[{i}]:RemoteUrl is required");
                 else if (!Uri.TryCreate(repo.RemoteUrl, UriKind.Absolute, out _) &&
-                         !repo.RemoteUrl.StartsWith("git@", StringComparison.Ordinal))
+                         !repo.RemoteUrl.StartsWith("git@", StringComparison.Ordinal) &&
+                         !repo.RemoteUrl.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase))
                     failures.Add($"GitProvider:Repositories[{i}]:RemoteUrl must be a valid URL or SSH path");
             }
 
@@ -95,7 +96,9 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                     .Replace("{key}", "", StringComparison.Ordinal)
                     .Replace("{job-id}", "", StringComparison.Ordinal);
                 if (stripped.Contains("..") || stripped.Contains('~') || stripped.Contains('^') ||
-                    stripped.Contains(':') || stripped.Contains('\\') || stripped.Contains(' '))
+                    stripped.Contains(':') || stripped.Contains('\\') || stripped.Contains(' ') ||
+                    stripped.Contains('*') || stripped.Contains('?') || stripped.Contains('[') ||
+                    stripped.Contains("@{"))
                     failures.Add("GitProvider:BranchTemplate contains invalid git branch characters");
 
                 // Check endings on the original template (not stripped, where placeholders leave trailing slashes)
