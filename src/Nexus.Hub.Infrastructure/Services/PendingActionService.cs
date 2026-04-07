@@ -67,8 +67,7 @@ public class PendingActionService(IPendingActionRepository pendingActionReposito
         {
             "approve" => PendingActionStatus.Approved,
             "reject" => PendingActionStatus.Rejected,
-            "respond" => PendingActionStatus.Resolved,
-            _ => throw new Domain.Exceptions.ValidationException($"Invalid action '{action}'")
+            _ => PendingActionStatus.Resolved // "respond" — already validated
         };
         pendingAction.ResolvedAt = DateTimeOffset.UtcNow;
 

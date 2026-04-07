@@ -115,9 +115,13 @@ public class PendingActionsController(
         {
             var root = action.Metadata.RootElement;
             if (root.TryGetProperty("summary", out var summaryEl))
-                summary = summaryEl.GetString();
+                summary = summaryEl.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? summaryEl.GetString()
+                    : summaryEl.ToString();
             if (root.TryGetProperty("description", out var descEl))
-                description = descEl.GetString();
+                description = descEl.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? descEl.GetString()
+                    : descEl.ToString();
         }
 
         return new PendingActionResponse

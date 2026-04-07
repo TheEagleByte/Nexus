@@ -219,5 +219,31 @@ public class PendingActionsControllerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task ResolveAsync_ActionNotFound_ThrowsNotFoundException()
+    {
+        var actionId = Guid.NewGuid();
+        _serviceMock
+            .Setup(s => s.ResolveAsync(actionId, "approve", null, null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new NotFoundException($"PendingAction {actionId} not found"));
+
+        var request = new ResolvePendingActionRequest { Action = "approve" };
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => _controller.ResolveAsync(actionId, request, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_AlreadyResolved_ThrowsConflictException()
+    {
+        var actionId = Guid.NewGuid();
+        _serviceMock
+            .Setup(s => s.ResolveAsync(actionId, "approve", null, null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ConflictException($"PendingAction {actionId} is already resolved"));
+
+        var request = new ResolvePendingActionRequest { Action = "approve" };
+        await Assert.ThrowsAsync<ConflictException>(
+            () => _controller.ResolveAsync(actionId, request, CancellationToken.None));
+    }
+
     #endregion
 }

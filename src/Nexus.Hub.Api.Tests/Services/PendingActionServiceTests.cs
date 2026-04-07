@@ -41,6 +41,7 @@ public class PendingActionServiceTests
         Assert.Equal(PendingActionType.PlanReview, result.Type);
         Assert.Equal(PendingActionStatus.Pending, result.Status);
         Assert.Equal(5, result.Priority);
+        Assert.NotEqual(default, result.CreatedAt);
         Assert.True(result.CreatedAt <= DateTimeOffset.UtcNow);
         Assert.Null(result.ResolvedAt);
 
