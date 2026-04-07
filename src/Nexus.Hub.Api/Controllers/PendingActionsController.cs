@@ -78,6 +78,7 @@ public class PendingActionsController(
             });
 
         var resolved = await _pendingActionService.ResolveAsync(id, request.Action, request.Notes, request.Modifications, cancellationToken);
+        var resolvedAt = resolved.ResolvedAt ?? DateTimeOffset.UtcNow;
 
         // Broadcast SignalR event
         try
@@ -87,7 +88,7 @@ public class PendingActionsController(
                 resolved.SpokeId,
                 request.Action.ToLowerInvariant(),
                 request.Notes,
-                resolved.ResolvedAt ?? DateTimeOffset.UtcNow
+                resolvedAt
             );
             await _hubContext.Clients.All.SendAsync("PendingActionResolved", resolvedEvent, CancellationToken.None);
         }
@@ -101,7 +102,7 @@ public class PendingActionsController(
             Id = resolved.Id,
             Status = resolved.Status,
             Action = request.Action.ToLowerInvariant(),
-            ResolvedAt = resolved.ResolvedAt ?? DateTimeOffset.UtcNow,
+            ResolvedAt = resolvedAt,
             Metadata = resolved.Metadata
         });
     }
