@@ -125,3 +125,34 @@ public record ConversationSpokeMessage(
     string Content,
     DateTimeOffset Timestamp
 );
+
+public record CreatePendingActionRequest(
+    Guid ProjectId,
+    Guid JobId,
+    PendingActionType GateType,
+    int Priority,
+    string? Summary,
+    string? Description,
+    Dictionary<string, object>? Metadata
+);
+
+public record PendingActionEvent(
+    Guid Id,
+    Guid SpokeId,
+    string SpokeName,
+    Guid ProjectId,
+    string? ExternalKey,
+    PendingActionType GateType,
+    string? Summary,
+    string? Description,
+    Dictionary<string, object>? Metadata,
+    DateTimeOffset CreatedAt
+);
+
+public record PendingActionResolvedEvent(
+    Guid Id,
+    Guid SpokeId,
+    string Action,
+    string? Notes,
+    DateTimeOffset ResolvedAt
+);
