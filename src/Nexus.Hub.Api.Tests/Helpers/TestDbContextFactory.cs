@@ -77,6 +77,11 @@ public sealed class TestDbContextFactory : IDisposable
             {
                 entity.Property(a => a.Details).HasConversion(nullableJsonConverter).HasColumnType("TEXT");
             });
+
+            modelBuilder.Entity<PendingAction>(entity =>
+            {
+                entity.Property(pa => pa.Metadata).HasConversion(nullableJsonConverter).HasColumnType("TEXT");
+            });
         }
     }
 }
