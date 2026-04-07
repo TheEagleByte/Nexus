@@ -504,8 +504,14 @@ public class DockerService : IDockerService
 
     private static string ResolvePath(string path)
     {
-        if (path.StartsWith('~'))
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path[2..]);
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        if (path == "~")
+            return userProfile;
+
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+            return Path.Combine(userProfile, path[2..]);
+
         return Path.GetFullPath(path);
     }
 

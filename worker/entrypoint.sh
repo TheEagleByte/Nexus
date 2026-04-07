@@ -30,10 +30,13 @@ fi
 # Use /tmp as HOME since root filesystem is read-only
 export HOME=/tmp
 
-# Configure git identity (set via env vars by spoke)
-if [ -n "${GIT_AUTHOR_NAME:-}" ]; then
+# Configure git identity (set via env vars by spoke — both must be present)
+if [ -n "${GIT_AUTHOR_NAME:-}" ] && [ -n "${GIT_AUTHOR_EMAIL:-}" ]; then
     git config --global user.name "$GIT_AUTHOR_NAME"
-    git config --global user.email "${GIT_AUTHOR_EMAIL:-}"
+    git config --global user.email "$GIT_AUTHOR_EMAIL"
+elif [ -n "${GIT_AUTHOR_NAME:-}" ] || [ -n "${GIT_AUTHOR_EMAIL:-}" ]; then
+    echo "ERROR: GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL must both be set" >&2
+    exit 1
 fi
 
 # Mark workspace as safe directory
@@ -46,13 +49,24 @@ if [ -f "/tmp/.ssh/id_key" ]; then
     chmod 600 /tmp/.ssh_work/id_key
     if [ -f "/tmp/.ssh/known_hosts" ]; then
         cp /tmp/.ssh/known_hosts /tmp/.ssh_work/known_hosts
+        export GIT_SSH_COMMAND="ssh -i /tmp/.ssh_work/id_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/.ssh_work/known_hosts"
+    else
+        export GIT_SSH_COMMAND="ssh -i /tmp/.ssh_work/id_key -o StrictHostKeyChecking=accept-new"
     fi
-    export GIT_SSH_COMMAND="ssh -i /tmp/.ssh_work/id_key -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/.ssh_work/known_hosts"
 fi
 
 # Token auth setup — spoke passes GIT_TOKEN env var for HTTPS credential helper
 if [ -n "${GIT_TOKEN:-}" ]; then
-    git config --global credential.helper '!f() { echo "password=$GIT_TOKEN"; }; f'
+    GIT_REMOTE_URL="$(git remote get-url origin 2>/dev/null || true)"
+    if [[ "$GIT_REMOTE_URL" == https://* ]]; then
+        GIT_HTTPS_HOST="${GIT_REMOTE_URL#https://}"
+        GIT_HTTPS_HOST="${GIT_HTTPS_HOST%%/*}"
+        git config --global "credential.https://$GIT_HTTPS_HOST.helper" \
+            "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
+    else
+        git config --global credential.helper \
+            "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
+    fi
 fi
 
 # Build claude command arguments

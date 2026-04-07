@@ -1155,11 +1155,11 @@ public async Task AcknowledgeCommandAsync(Guid commandId)
 
 **Workers receive scoped git and GitHub credentials** to enable the ticket-to-merge pipeline (commit, push, create PRs). This is a deliberate tradeoff: direct worker access to git/GitHub is required for autonomous operation, while sandboxing limits blast radius.
 
-**What workers receive (read-only, scoped):**
+**What workers receive (read-only, scoped, when configured):**
 1. **Git identity** — `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` env vars
 2. **Git auth** — Either SSH key mounted read-only at `/tmp/.ssh/id_key`, or `GIT_TOKEN` env var for HTTPS credential helper
-3. **GitHub CLI auth** — `GH_TOKEN` env var (for `gh pr create`, etc.)
-4. **Anthropic API key** — `ANTHROPIC_API_KEY` env var (for Claude Code CLI)
+3. **GitHub CLI auth** — `GH_TOKEN` env var when configured (for `gh pr create`, etc.)
+4. **Anthropic API key** — `ANTHROPIC_API_KEY` env var if present in the spoke environment (for Claude Code CLI)
 5. **Read-write mounted repo** (cloned locally on spoke)
 6. **Prompt file** (injected by spoke, read-only)
 
@@ -1175,7 +1175,7 @@ public async Task AcknowledgeCommandAsync(Guid commandId)
 - Unprivileged user (UID 1000:1000) — no root access
 - Resource limits (memory, CPU, disk) — prevents resource exhaustion
 - Ephemeral containers — destroyed after job completes, no persistent state
-- SSH keys mounted read-only — worker cannot modify or exfiltrate to persistent storage
+- SSH keys mounted read-only — worker cannot modify the mounted key file; containers are ephemeral after job completion
 
 **Network access:** Workers use `NetworkMode: bridge` by default, inheriting the spoke machine's network access. This enables `git push`, `gh pr create`, and Anthropic API calls. Operators can set `NetworkMode: none` for analysis-only spokes where workers should not have network access.
 
