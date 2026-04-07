@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Nexus.Hub.Domain.Entities;
 
 namespace Nexus.Hub.Api.Hubs;
@@ -154,5 +155,6 @@ public record PendingActionResolvedEvent(
     Guid SpokeId,
     string Action,
     string? Notes,
-    DateTimeOffset ResolvedAt
+    DateTimeOffset ResolvedAt,
+    JsonDocument? Metadata
 );

@@ -88,7 +88,8 @@ public class PendingActionsController(
                 resolved.SpokeId,
                 request.Action.ToLowerInvariant(),
                 request.Notes,
-                resolvedAt
+                resolvedAt,
+                resolved.Metadata
             );
             await _hubContext.Clients.All.SendAsync("PendingActionResolved", resolvedEvent, CancellationToken.None);
         }
