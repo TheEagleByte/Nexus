@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Nexus.Hub.Domain.Entities;
 
 public class PendingAction
@@ -11,7 +13,7 @@ public class PendingAction
     public int Priority { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
-    public string? Metadata { get; set; }
+    public JsonDocument? Metadata { get; set; }
 
     public Spoke Spoke { get; set; } = null!;
     public Project Project { get; set; } = null!;

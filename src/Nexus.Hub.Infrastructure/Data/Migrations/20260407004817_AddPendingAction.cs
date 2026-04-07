@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -24,7 +25,7 @@ namespace Nexus.Hub.Infrastructure.Data.Migrations
                     Priority = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     ResolvedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    Metadata = table.Column<string>(type: "jsonb", nullable: true)
+                    Metadata = table.Column<JsonDocument>(type: "jsonb", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -68,11 +69,6 @@ namespace Nexus.Hub.Infrastructure.Data.Migrations
                 name: "IX_PendingActions_SpokeId",
                 table: "PendingActions",
                 column: "SpokeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PendingActions_Status",
-                table: "PendingActions",
-                column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PendingActions_Status_Priority",

@@ -276,7 +276,7 @@ namespace Nexus.Hub.Infrastructure.Data.Migrations
                     b.Property<Guid>("JobId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Metadata")
+                    b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb");
 
                     b.Property<int>("Priority")
@@ -310,8 +310,6 @@ namespace Nexus.Hub.Infrastructure.Data.Migrations
                     b.HasIndex("ProjectId");
 
                     b.HasIndex("SpokeId");
-
-                    b.HasIndex("Status");
 
                     b.HasIndex("Status", "Priority");
 

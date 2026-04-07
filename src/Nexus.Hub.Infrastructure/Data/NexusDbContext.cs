@@ -220,7 +220,6 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
             entity.Property(pa => pa.Metadata).HasColumnType("jsonb");
 
             entity.HasIndex(pa => pa.SpokeId);
-            entity.HasIndex(pa => pa.Status);
             entity.HasIndex(pa => pa.Priority);
             entity.HasIndex(pa => new { pa.Status, pa.Priority });
 
