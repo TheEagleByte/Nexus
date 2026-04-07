@@ -33,6 +33,30 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 failures.Add("Docker:ResourceLimits:MemoryBytes must be at least 512MB");
             if (options.Docker.ResourceLimits.CpuCount < 1)
                 failures.Add("Docker:ResourceLimits:CpuCount must be at least 1");
+
+            // Validate credentials when network is enabled
+            if (!string.Equals(options.Docker.NetworkMode, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                var creds = options.Docker.Credentials;
+                var git = creds.Git;
+
+                if (!string.Equals(git.AuthMethod, "ssh", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(git.AuthMethod, "token", StringComparison.OrdinalIgnoreCase))
+                    failures.Add("Docker:Credentials:Git:AuthMethod must be 'ssh' or 'token'");
+
+                if (string.IsNullOrWhiteSpace(git.UserName))
+                    failures.Add("Docker:Credentials:Git:UserName is required when network is enabled");
+                if (string.IsNullOrWhiteSpace(git.UserEmail))
+                    failures.Add("Docker:Credentials:Git:UserEmail is required when network is enabled");
+
+                if (string.Equals(git.AuthMethod, "ssh", StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(git.SshKeyPath))
+                    failures.Add("Docker:Credentials:Git:SshKeyPath is required when AuthMethod is 'ssh'");
+
+                if (string.Equals(git.AuthMethod, "token", StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(git.Token))
+                    failures.Add("Docker:Credentials:Git:Token is required when AuthMethod is 'token'");
+            }
         }
 
         return failures.Count > 0

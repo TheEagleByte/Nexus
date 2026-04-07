@@ -1153,56 +1153,42 @@ public async Task AcknowledgeCommandAsync(Guid commandId)
 
 #### Credential Isolation
 
-**Workers receive NO credentials.** They access:
-1. **Read-only mounted repo** (cloned locally on spoke)
-2. **Prompt file** (injected by spoke, read-only)
-3. **Local git config** (on spoke machine, accessible by spoke daemon but not passed to worker)
+**Workers receive scoped git and GitHub credentials** to enable the ticket-to-merge pipeline (commit, push, create PRs). This is a deliberate tradeoff: direct worker access to git/GitHub is required for autonomous operation, while sandboxing limits blast radius.
 
-If a worker needs to commit/push:
-- Spoke daemon authenticates to git using local credentials
-- Spoke daemon creates a branch on behalf of the worker
-- Worker outputs code changes to `/tmp/output.json` (read by spoke, not executed in container)
-- Spoke daemon applies the changes to the repo
+**What workers receive (read-only, scoped, when configured):**
+1. **Git identity** — `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` env vars
+2. **Git auth** — Either SSH key mounted read-only at `/tmp/.ssh/id_key`, or `GIT_TOKEN` env var for HTTPS credential helper
+3. **GitHub CLI auth** — `GH_TOKEN` env var when configured (for `gh pr create`, etc.)
+4. **Anthropic API key** — `ANTHROPIC_API_KEY` env var if present in the spoke environment (for Claude Code CLI)
+5. **Read-write mounted repo** (cloned locally on spoke)
+6. **Prompt file** (injected by spoke, read-only)
 
-**Example: Worker Prompt**
-```markdown
-# Claude Code Task: Implement PROJ-4521
+**What workers do NOT receive:**
+- Jira API tokens or other external service credentials
+- Spoke-to-hub authentication tokens
+- Container registry credentials
+- Any credentials beyond git/GitHub scope
 
-## Context
-Ticket: PROJ-4521 — Refactor authentication service
-Repository: /work/repo (read-only)
+**Security controls retained:**
+- `CapDrop: ALL` — all Linux capabilities dropped
+- `SecurityOpt: no-new-privileges` — prevents privilege escalation
+- Unprivileged user (UID 1000:1000) — no root access
+- Resource limits (memory, CPU, disk) — prevents resource exhaustion
+- Ephemeral containers — destroyed after job completes, no persistent state
+- SSH keys mounted read-only — worker cannot modify the mounted key file; containers are ephemeral after job completion
 
-## Objective
-Review the authentication service in `/work/repo/src/Auth/`, identify inefficiencies, and propose refactoring.
+**Network access:** Workers use `NetworkMode: bridge` by default, inheriting the spoke machine's network access. This enables `git push`, `gh pr create`, and Anthropic API calls. Operators can set `NetworkMode: none` for analysis-only spokes where workers should not have network access.
 
-## Constraints
-- You are in a Docker container with read-only filesystem.
-- You cannot commit or push code directly.
-- Output your implementation plan to `/tmp/output.json`.
-
-## Output Format
-{
-  "plan": "Step-by-step implementation plan",
-  "changes": [
-    {
-      "file": "src/Auth/AuthService.cs",
-      "operation": "modify",
-      "summary": "Description of change"
-    }
-  ]
-}
-
----
-
-[Assembled context from spoke memory, related tickets, previous jobs, etc.]
-```
+**Configuration:** Credentials are configured in the spoke's `config.yaml` under `Docker.Credentials`. See spoke configuration documentation for details.
 
 ---
 
 
 ## 2.4 PR Monitoring Credentials
 
-PR monitoring requires local Git platform credentials (GitHub tokens, Azure DevOps Personal Access Tokens) to interact with Pull Request APIs. These credentials are handled with strict compartmentalization:
+PR monitoring requires local Git platform credentials (GitHub tokens, Azure DevOps Personal Access Tokens) to interact with Pull Request APIs. These credentials are handled with strict compartmentalization.
+
+> **Note:** Workers also use the same `GH_TOKEN` / git credentials (configured under `Docker.Credentials` in `config.yaml`) for direct PR creation during job execution. The spoke's PR monitoring service and worker containers share the same credential source.
 
 ### Storage
 
