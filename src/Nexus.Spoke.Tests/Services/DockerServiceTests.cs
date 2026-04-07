@@ -20,10 +20,21 @@ public class DockerServiceTests
                     CpuCount = 2,
                     DiskLimitBytes = 107_374_182_400
                 },
-                NetworkMode = "none",
+                NetworkMode = "bridge",
                 ReadOnlyRootFs = true,
                 ContainerUser = "1000:1000",
-                TimeoutSeconds = 14400
+                TimeoutSeconds = 14400,
+                Credentials = new SpokeConfiguration.CredentialsConfig
+                {
+                    Git = new SpokeConfiguration.GitCredentialsConfig
+                    {
+                        AuthMethod = "token",
+                        Token = "ghp_test",
+                        UserName = "Test User",
+                        UserEmail = "test@example.com"
+                    },
+                    GhToken = "ghp_gh_test"
+                }
             }
         };
 

@@ -234,6 +234,25 @@ public class DockerService : IDockerService
         if (!string.IsNullOrEmpty(request.MergedSkillsFilePath) && File.Exists(request.MergedSkillsFilePath))
             binds.Add($"{request.MergedSkillsFilePath}:/workspace/skills/CLAUDE.md:ro");
 
+        // Mount git credentials when network is enabled
+        var networkEnabled = !string.Equals(dockerConfig.NetworkMode, "none", StringComparison.OrdinalIgnoreCase);
+        if (networkEnabled && string.Equals(dockerConfig.Credentials.Git.AuthMethod, "ssh", StringComparison.OrdinalIgnoreCase))
+        {
+            var sshKeyPath = ResolvePath(dockerConfig.Credentials.Git.SshKeyPath);
+            if (File.Exists(sshKeyPath))
+            {
+                binds.Add($"{sshKeyPath}:/tmp/.ssh/id_key:ro");
+
+                var knownHostsPath = Path.Combine(Path.GetDirectoryName(sshKeyPath)!, "known_hosts");
+                if (File.Exists(knownHostsPath))
+                    binds.Add($"{knownHostsPath}:/tmp/.ssh/known_hosts:ro");
+            }
+            else
+            {
+                _logger.LogWarning("SSH key not found at {Path}, worker may not be able to push", sshKeyPath);
+            }
+        }
+
         var envVars = new List<string>
         {
             $"JOB_ID={request.JobId}",
@@ -242,10 +261,31 @@ public class DockerService : IDockerService
         };
 
         // Pass ANTHROPIC_API_KEY from the spoke's environment
-        // Network is disabled (none) so the key cannot be exfiltrated
         var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         if (!string.IsNullOrEmpty(apiKey))
             envVars.Add($"ANTHROPIC_API_KEY={apiKey}");
+
+        // Pass git/GitHub credentials when network is enabled
+        if (networkEnabled)
+        {
+            var gitConfig = dockerConfig.Credentials.Git;
+            if (!string.IsNullOrEmpty(gitConfig.UserName))
+            {
+                envVars.Add($"GIT_AUTHOR_NAME={gitConfig.UserName}");
+                envVars.Add($"GIT_COMMITTER_NAME={gitConfig.UserName}");
+            }
+            if (!string.IsNullOrEmpty(gitConfig.UserEmail))
+            {
+                envVars.Add($"GIT_AUTHOR_EMAIL={gitConfig.UserEmail}");
+                envVars.Add($"GIT_COMMITTER_EMAIL={gitConfig.UserEmail}");
+            }
+            if (string.Equals(gitConfig.AuthMethod, "token", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(gitConfig.Token))
+                envVars.Add($"GIT_TOKEN={gitConfig.Token}");
+
+            if (!string.IsNullOrEmpty(dockerConfig.Credentials.GhToken))
+                envVars.Add($"GH_TOKEN={dockerConfig.Credentials.GhToken}");
+        }
 
         var createParams = new CreateContainerParameters
         {
@@ -460,6 +500,19 @@ public class DockerService : IDockerService
         {
             // Already removed — idempotent
         }
+    }
+
+    private static string ResolvePath(string path)
+    {
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        if (path == "~")
+            return userProfile;
+
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+            return Path.Combine(userProfile, path[2..]);
+
+        return Path.GetFullPath(path);
     }
 
     public ValueTask DisposeAsync()
