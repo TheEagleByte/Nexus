@@ -115,6 +115,23 @@ public class PendingActionServiceTests
     }
 
     [Fact]
+    public async Task ResolveAsync_WithResolution_PreservesExistingMetadata()
+    {
+        var actionId = Guid.NewGuid();
+        var existingMetadata = JsonDocument.Parse("{\"ticket\":\"NEX-23\",\"context\":\"plan review\"}");
+        var action = new PendingAction { Id = actionId, Status = PendingActionStatus.Pending, CreatedAt = DateTimeOffset.UtcNow, Metadata = existingMetadata };
+        _repo.Setup(r => r.GetByIdAsync(actionId, It.IsAny<CancellationToken>())).ReturnsAsync(action);
+
+        await _sut.ResolveAsync(actionId, approved: true, resolution: "Looks good");
+
+        Assert.NotNull(action.Metadata);
+        var root = action.Metadata.RootElement;
+        Assert.Equal("NEX-23", root.GetProperty("ticket").GetString());
+        Assert.Equal("plan review", root.GetProperty("context").GetString());
+        Assert.Equal("Looks good", root.GetProperty("resolution").GetString());
+    }
+
+    [Fact]
     public async Task ResolveAsync_AlreadyResolved_ThrowsValidationException()
     {
         var actionId = Guid.NewGuid();

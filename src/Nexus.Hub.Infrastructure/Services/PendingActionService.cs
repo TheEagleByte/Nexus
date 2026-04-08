@@ -45,7 +45,14 @@ public class PendingActionService(IPendingActionRepository pendingActionReposito
 
         if (resolution is not null)
         {
-            action.Metadata = JsonDocument.Parse(JsonSerializer.Serialize(new { resolution }));
+            var merged = new Dictionary<string, object>();
+            if (action.Metadata is not null)
+            {
+                foreach (var prop in action.Metadata.RootElement.EnumerateObject())
+                    merged[prop.Name] = prop.Value.Clone();
+            }
+            merged["resolution"] = resolution;
+            action.Metadata = JsonDocument.Parse(JsonSerializer.Serialize(merged));
         }
 
         await _pendingActionRepository.UpdateAsync(action, cancellationToken);
@@ -57,7 +64,7 @@ public class PendingActionService(IPendingActionRepository pendingActionReposito
         var action = await _pendingActionRepository.GetByIdAsync(actionId, cancellationToken);
         if (action is null)
         {
-            _logger.LogWarning("PendingAction not found: {ActionId}", actionId);
+            _logger.LogDebug("PendingAction not found: {ActionId}", actionId);
             throw new Domain.Exceptions.NotFoundException($"PendingAction {actionId} not found");
         }
         return action;
