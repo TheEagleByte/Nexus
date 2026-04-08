@@ -215,4 +215,139 @@ public class ConfigurationValidatorTests
         var result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }
+
+    // --- GitProvider validation tests ---
+
+    private static SpokeConfiguration CreateWithGitProvider(
+        string type = "github",
+        string credentialsRef = "docker",
+        SpokeConfiguration.RepositoryConfig[]? repos = null)
+    {
+        var config = CreateWithDockerAndNetwork("token");
+        config.GitProvider = new SpokeConfiguration.GitProviderConfig
+        {
+            Type = type,
+            CredentialsRef = credentialsRef,
+            Repositories = repos ?? []
+        };
+        return config;
+    }
+
+    [Fact]
+    public void Validate_NoGitProvider_Succeeds()
+    {
+        var config = CreateValid();
+        config.GitProvider = null;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_ValidGitHubProvider_Succeeds()
+    {
+        var config = CreateWithGitProvider("github");
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_ValidGitLabProvider_Succeeds()
+    {
+        var config = CreateWithGitProvider("gitlab");
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_InvalidProviderType_Fails()
+    {
+        var config = CreateWithGitProvider("bitbucket");
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:Type must be 'github' or 'gitlab'", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_CredentialsRefDocker_NoDockerCreds_Fails()
+    {
+        var config = CreateWithGitProvider("github", "docker");
+        config.Docker.Credentials.Git.Token = "";
+        config.Docker.Credentials.Git.SshKeyPath = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("no token or SSH key configured", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_UnknownCredentialsRef_Fails()
+    {
+        var config = CreateWithGitProvider("github", "vault");
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("not a recognized credentials source", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_EmptyRepositories_Succeeds()
+    {
+        var config = CreateWithGitProvider("github", "docker", []);
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_RepositoryMissingName_Fails()
+    {
+        var repos = new[]
+        {
+            new SpokeConfiguration.RepositoryConfig
+            {
+                Name = "",
+                RemoteUrl = "git@github.com:org/repo.git"
+            }
+        };
+        var config = CreateWithGitProvider("github", "docker", repos);
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Repositories[0]:Name is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_RepositoryMissingRemoteUrl_Fails()
+    {
+        var repos = new[]
+        {
+            new SpokeConfiguration.RepositoryConfig
+            {
+                Name = "my-repo",
+                RemoteUrl = ""
+            }
+        };
+        var config = CreateWithGitProvider("github", "docker", repos);
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("Repositories[0]:RemoteUrl is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_MultipleRepositories_AllValid_Succeeds()
+    {
+        var repos = new[]
+        {
+            new SpokeConfiguration.RepositoryConfig
+            {
+                Name = "app",
+                RemoteUrl = "git@github.com:org/app.git",
+                DefaultBranch = "main"
+            },
+            new SpokeConfiguration.RepositoryConfig
+            {
+                Name = "lib",
+                RemoteUrl = "git@github.com:org/lib.git"
+            }
+        };
+        var config = CreateWithGitProvider("github", "docker", repos);
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
 }

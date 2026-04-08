@@ -30,6 +30,16 @@ Approval:
   MaxConcurrentJobs: 2
   HeartbeatIntervalSeconds: 30
 
+# GitProvider:
+#   Type: "github"                          # "github" or "gitlab"
+#   CredentialsRef: "docker"                # Uses Docker.Credentials.Git for auth
+#   Repositories:
+#     - Name: "my-app"
+#       RemoteUrl: "git@github.com:org/my-app.git"
+#       DefaultBranch: "main"
+#     - Name: "shared-lib"
+#       RemoteUrl: "git@github.com:org/shared-lib.git"
+
 Docker:
   WorkerImage: "nexus-worker:latest"
   WorkerDockerfilePath: "worker/Dockerfile"
