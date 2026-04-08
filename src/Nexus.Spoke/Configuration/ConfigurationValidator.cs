@@ -59,9 +59,12 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
             }
         }
 
-        if (options.GitProvider is { } gp)
+        if (options.Capabilities.Git)
         {
-            if (!string.Equals(gp.Type, "github", StringComparison.OrdinalIgnoreCase) &&
+            var gp = options.GitProvider;
+
+            if (!string.IsNullOrWhiteSpace(gp.Type) &&
+                !string.Equals(gp.Type, "github", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(gp.Type, "gitlab", StringComparison.OrdinalIgnoreCase))
                 failures.Add("GitProvider:Type must be 'github' or 'gitlab'");
 
@@ -88,6 +91,34 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                     failures.Add($"GitProvider:Repositories[{i}]:Name is required");
                 if (string.IsNullOrWhiteSpace(repo.RemoteUrl))
                     failures.Add($"GitProvider:Repositories[{i}]:RemoteUrl is required");
+                else if (!Uri.TryCreate(repo.RemoteUrl, UriKind.Absolute, out _) &&
+                         !repo.RemoteUrl.StartsWith("git@", StringComparison.Ordinal) &&
+                         !repo.RemoteUrl.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase))
+                    failures.Add($"GitProvider:Repositories[{i}]:RemoteUrl must be a valid URL or SSH path");
+            }
+
+            if (gp.SyncIntervalSeconds < 30)
+                failures.Add("GitProvider:SyncIntervalSeconds must be at least 30");
+
+            var bt = gp.BranchTemplate;
+            if (!string.IsNullOrWhiteSpace(bt))
+            {
+                if (!bt.Contains("{key}"))
+                    failures.Add("GitProvider:BranchTemplate must contain {key} placeholder");
+
+                var stripped = bt
+                    .Replace("{type}", "", StringComparison.Ordinal)
+                    .Replace("{key}", "", StringComparison.Ordinal)
+                    .Replace("{job-id}", "", StringComparison.Ordinal);
+                if (stripped.Contains("..") || stripped.Contains('~') || stripped.Contains('^') ||
+                    stripped.Contains(':') || stripped.Contains('\\') || stripped.Contains(' ') ||
+                    stripped.Contains('*') || stripped.Contains('?') || stripped.Contains('[') ||
+                    stripped.Contains("@{"))
+                    failures.Add("GitProvider:BranchTemplate contains invalid git branch characters");
+
+                if (bt.EndsWith(".lock", StringComparison.Ordinal) ||
+                    bt.EndsWith(".", StringComparison.Ordinal) || bt.EndsWith("/", StringComparison.Ordinal))
+                    failures.Add("GitProvider:BranchTemplate must not end with '.', '/', or '.lock'");
             }
         }
 

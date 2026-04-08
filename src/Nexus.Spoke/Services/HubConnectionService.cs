@@ -118,6 +118,24 @@ public class HubConnectionService(
         if (cfg.Capabilities.Docker) capabilities.Add("docker");
         if (cfg.Capabilities.PrMonitoring) capabilities.Add("pr_monitoring");
 
+        var repos = (cfg.GitProvider.Repositories ?? [])
+            .Select(r => new RepositoryDto(r.Name, r.RemoteUrl, r.DefaultBranch))
+            .ToArray();
+
+        var jiraConfig = cfg.Capabilities.Jira
+            ? new JiraConfigDto(cfg.Jira.InstanceUrl, cfg.Jira.ProjectKeys)
+            : null;
+
+        var profile = new SpokeProfileDto(
+            DisplayName: cfg.Spoke.Name,
+            MachineDescription: $"{cfg.Spoke.Os}/{cfg.Spoke.Architecture}",
+            Repos: repos,
+            JiraConfig: jiraConfig,
+            Integrations: capabilities.ToArray(),
+            Description: $"Nexus Spoke - {cfg.Spoke.Name}",
+            GitProviderType: cfg.GitProvider.Type
+        );
+
         var registration = new SpokeRegistration(
             Name: cfg.Spoke.Name,
             Capabilities: capabilities.ToArray(),
@@ -128,7 +146,7 @@ public class HubConnectionService(
                 MaxConcurrentJobs: cfg.Approval.MaxConcurrentJobs,
                 HeartbeatIntervalSeconds: cfg.Approval.HeartbeatIntervalSeconds
             ),
-            Profile: BuildProfile(cfg),
+            Profile: profile,
             Metadata: null
         );
 
@@ -136,32 +154,6 @@ public class HubConnectionService(
 
         await _connection.InvokeAsync("RegisterSpoke", registration, cancellationToken);
         logger.LogDebug("Registration message sent to hub");
-    }
-
-    private static SpokeProfileDto BuildProfile(SpokeConfiguration cfg)
-    {
-        var repos = (cfg.GitProvider?.Repositories ?? [])
-            .Select(r => new RepositoryDto(r.Name, r.RemoteUrl, r.DefaultBranch))
-            .ToArray();
-
-        var integrations = new List<string>();
-        if (cfg.Capabilities.Jira) integrations.Add("jira");
-        if (cfg.Capabilities.Git) integrations.Add("git");
-        if (cfg.Capabilities.Docker) integrations.Add("docker");
-
-        var jiraConfig = cfg.Capabilities.Jira
-            ? new JiraConfigDto(cfg.Jira.InstanceUrl, cfg.Jira.ProjectKeys)
-            : null;
-
-        return new SpokeProfileDto(
-            DisplayName: cfg.Spoke.Name,
-            MachineDescription: $"{cfg.Spoke.Os}/{cfg.Spoke.Architecture}",
-            Repos: repos,
-            JiraConfig: jiraConfig,
-            Integrations: integrations.ToArray(),
-            Description: $"Spoke {cfg.Spoke.Name}",
-            GitProviderType: cfg.GitProvider?.Type
-        );
     }
 
     public async ValueTask DisposeAsync()

@@ -9,7 +9,7 @@ public class SpokeConfiguration
     public JiraIntegrationConfig Jira { get; set; } = new();
     public ApprovalConfig Approval { get; set; } = new();
     public DockerConfig Docker { get; set; } = new();
-    public GitProviderConfig? GitProvider { get; set; }
+    public GitProviderConfig GitProvider { get; set; } = new();
 
     public class SpokeIdentityConfig
     {
@@ -96,6 +96,8 @@ public class SpokeConfiguration
         public string Type { get; set; } = string.Empty;
         public string CredentialsRef { get; set; } = "docker";
         public RepositoryConfig[] Repositories { get; set; } = [];
+        public string BranchTemplate { get; set; } = "nexus/{type}/{key}";
+        public int SyncIntervalSeconds { get; set; } = 300;
     }
 
     public class RepositoryConfig

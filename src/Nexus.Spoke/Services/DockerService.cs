@@ -287,6 +287,11 @@ public class DockerService : IDockerService
                 envVars.Add($"GH_TOKEN={dockerConfig.Credentials.GhToken}");
         }
 
+        // NEX-190: Pass branch naming template to worker
+        var branchTemplate = _config.GitProvider.BranchTemplate;
+        if (!string.IsNullOrWhiteSpace(branchTemplate))
+            envVars.Add($"NEXUS_BRANCH_TEMPLATE={branchTemplate}");
+
         var createParams = new CreateContainerParameters
         {
             Image = dockerConfig.WorkerImage,
