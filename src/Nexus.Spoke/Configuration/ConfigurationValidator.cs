@@ -65,20 +65,25 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 !string.Equals(gp.Type, "gitlab", StringComparison.OrdinalIgnoreCase))
                 failures.Add("GitProvider:Type must be 'github' or 'gitlab'");
 
-            if (string.Equals(gp.CredentialsRef, "docker", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(gp.CredentialsRef))
+            {
+                failures.Add("GitProvider:CredentialsRef is required");
+            }
+            else if (string.Equals(gp.CredentialsRef, "docker", StringComparison.OrdinalIgnoreCase))
             {
                 var git = options.Docker.Credentials.Git;
                 if (string.IsNullOrWhiteSpace(git.Token) && string.IsNullOrWhiteSpace(git.SshKeyPath))
                     failures.Add("GitProvider:CredentialsRef is 'docker' but Docker:Credentials:Git has no token or SSH key configured");
             }
-            else if (!string.IsNullOrWhiteSpace(gp.CredentialsRef))
+            else
             {
                 failures.Add($"GitProvider:CredentialsRef '{gp.CredentialsRef}' is not a recognized credentials source (use 'docker')");
             }
 
-            for (var i = 0; i < gp.Repositories.Length; i++)
+            var repos = gp.Repositories ?? [];
+            for (var i = 0; i < repos.Length; i++)
             {
-                var repo = gp.Repositories[i];
+                var repo = repos[i];
                 if (string.IsNullOrWhiteSpace(repo.Name))
                     failures.Add($"GitProvider:Repositories[{i}]:Name is required");
                 if (string.IsNullOrWhiteSpace(repo.RemoteUrl))

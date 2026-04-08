@@ -140,9 +140,9 @@ public class HubConnectionService(
 
     private static SpokeProfileDto BuildProfile(SpokeConfiguration cfg)
     {
-        var repos = cfg.GitProvider?.Repositories
+        var repos = (cfg.GitProvider?.Repositories ?? [])
             .Select(r => new RepositoryDto(r.Name, r.RemoteUrl, r.DefaultBranch))
-            .ToArray() ?? [];
+            .ToArray();
 
         var integrations = new List<string>();
         if (cfg.Capabilities.Jira) integrations.Add("jira");

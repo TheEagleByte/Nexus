@@ -350,4 +350,22 @@ public class ConfigurationValidatorTests
         var result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }
+
+    [Fact]
+    public void Validate_EmptyCredentialsRef_Fails()
+    {
+        var config = CreateWithGitProvider("github", "");
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:CredentialsRef is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_NullRepositories_Succeeds()
+    {
+        var config = CreateWithGitProvider("github", "docker");
+        config.GitProvider!.Repositories = null!;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
 }
