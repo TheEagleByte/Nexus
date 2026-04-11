@@ -65,14 +65,14 @@ public class DockerServiceTests
         var jobId = Guid.NewGuid();
         var request = new WorkerLaunchRequest(
             jobId, "TEST-1", JobType.Implement,
-            "/tmp/prompt.md", "/repo", "/output",
+            "/tmp/prompt.md", "/tmp/repo-config.json", "/output",
             "/skills/spoke", "/skills/project", "/tmp/merged-skills.md");
 
         Assert.Equal(jobId, request.JobId);
         Assert.Equal("TEST-1", request.ProjectKey);
         Assert.Equal(JobType.Implement, request.JobType);
         Assert.Equal("/tmp/prompt.md", request.PromptFilePath);
-        Assert.Equal("/repo", request.RepoPath);
+        Assert.Equal("/tmp/repo-config.json", request.RepoConfigFilePath);
         Assert.Equal("/output", request.OutputPath);
         Assert.Equal("/skills/spoke", request.SpokeSkillsPath);
         Assert.Equal("/skills/project", request.ProjectSkillsPath);
@@ -84,7 +84,7 @@ public class DockerServiceTests
     {
         var request = new WorkerLaunchRequest(
             Guid.NewGuid(), "TEST-1", JobType.Test,
-            "/tmp/prompt.md", "/repo", "/output",
+            "/tmp/prompt.md", "/tmp/repo-config.json", "/output",
             null, null, null);
 
         Assert.Null(request.SpokeSkillsPath);

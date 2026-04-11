@@ -220,7 +220,7 @@ public class DockerService : IDockerService
 
         var binds = new List<string>
         {
-            $"{request.RepoPath}:/workspace/repo:rw",
+            $"{request.RepoConfigFilePath}:/workspace/repo-config.json:ro",
             $"{request.PromptFilePath}:/workspace/prompt.md:ro",
             $"{request.OutputPath}:/workspace/output:rw"
         };

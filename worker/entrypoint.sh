@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Worker entrypoint — validates mounts and invokes Claude Code CLI
+# Worker entrypoint — clones repos, creates branches, then invokes Claude Code CLI.
 # Called inside an ephemeral Docker container launched by the Nexus spoke.
 
 PROMPT_FILE="/workspace/prompt.md"
+REPO_CONFIG="/workspace/repo-config.json"
 
 if [ ! -f "$PROMPT_FILE" ]; then
     echo "ERROR: Prompt file not found at $PROMPT_FILE" >&2
@@ -39,9 +40,6 @@ elif [ -n "${GIT_AUTHOR_NAME:-}" ] || [ -n "${GIT_AUTHOR_EMAIL:-}" ]; then
     exit 1
 fi
 
-# Mark workspace as safe directory
-git config --global --add safe.directory /workspace/repo
-
 # SSH auth setup — spoke mounts key at /tmp/.ssh/id_key (read-only)
 if [ -f "/tmp/.ssh/id_key" ]; then
     mkdir -p /tmp/.ssh_work
@@ -57,16 +55,68 @@ fi
 
 # Token auth setup — spoke passes GIT_TOKEN env var for HTTPS credential helper
 if [ -n "${GIT_TOKEN:-}" ]; then
-    GIT_REMOTE_URL="$(git remote get-url origin 2>/dev/null || true)"
-    if [[ "$GIT_REMOTE_URL" == https://* ]]; then
-        GIT_HTTPS_HOST="${GIT_REMOTE_URL#https://}"
-        GIT_HTTPS_HOST="${GIT_HTTPS_HOST%%/*}"
-        git config --global "credential.https://$GIT_HTTPS_HOST.helper" \
-            "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
-    else
-        git config --global credential.helper \
-            "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
+    # Set up a generic credential helper since we don't have a remote URL yet
+    git config --global credential.helper \
+        "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
+fi
+
+# ---- Repository initialization phase ----
+WORK_DIR="/workspace"
+
+if [ -f "$REPO_CONFIG" ]; then
+    echo "Initializing repositories from config..."
+
+    REPO_COUNT=$(jq -r '.repositories | length' "$REPO_CONFIG")
+    BRANCH_TEMPLATE=$(jq -r '.branchTemplate // "nexus/{type}/{key}"' "$REPO_CONFIG")
+    JOB_TYPE=$(jq -r '.jobType // ""' "$REPO_CONFIG")
+    PROJECT_KEY=$(jq -r '.projectKey // ""' "$REPO_CONFIG")
+    CONFIG_JOB_ID=$(jq -r '.jobId // ""' "$REPO_CONFIG")
+
+    # Build the branch name from template
+    BRANCH_NAME="$BRANCH_TEMPLATE"
+    BRANCH_NAME="${BRANCH_NAME//\{type\}/$JOB_TYPE}"
+    BRANCH_NAME="${BRANCH_NAME//\{key\}/$PROJECT_KEY}"
+    BRANCH_NAME="${BRANCH_NAME//\{job-id\}/$CONFIG_JOB_ID}"
+
+    if [ "$REPO_COUNT" -eq 0 ]; then
+        echo "WARNING: No repositories configured in repo-config.json" >&2
     fi
+
+    for i in $(seq 0 $((REPO_COUNT - 1))); do
+        REPO_NAME=$(jq -r ".repositories[$i].name" "$REPO_CONFIG")
+        CLONE_URL=$(jq -r ".repositories[$i].cloneUrl" "$REPO_CONFIG")
+        DEFAULT_BRANCH=$(jq -r ".repositories[$i].defaultBranch // \"main\"" "$REPO_CONFIG")
+
+        REPO_DIR="/workspace/repos/$REPO_NAME"
+
+        echo "Cloning $REPO_NAME from $CLONE_URL (branch: $DEFAULT_BRANCH)..."
+
+        if ! git clone --branch "$DEFAULT_BRANCH" "$CLONE_URL" "$REPO_DIR"; then
+            echo "ERROR: Failed to clone repository $REPO_NAME from $CLONE_URL" >&2
+            exit 1
+        fi
+
+        # Mark as safe directory
+        git config --global --add safe.directory "$REPO_DIR"
+
+        # Create feature branch
+        cd "$REPO_DIR"
+        echo "Creating branch $BRANCH_NAME from $DEFAULT_BRANCH..."
+        git checkout -b "$BRANCH_NAME"
+        cd /workspace
+    done
+
+    # Set working directory based on repo count
+    if [ "$REPO_COUNT" -eq 1 ]; then
+        SINGLE_REPO_NAME=$(jq -r '.repositories[0].name' "$REPO_CONFIG")
+        WORK_DIR="/workspace/repos/$SINGLE_REPO_NAME"
+    elif [ "$REPO_COUNT" -gt 1 ]; then
+        WORK_DIR="/workspace/repos"
+    fi
+
+    echo "Repository initialization complete. $REPO_COUNT repo(s) ready."
+else
+    echo "WARNING: No repo-config.json found, running without repository" >&2
 fi
 
 # Build claude command arguments
@@ -77,14 +127,13 @@ CLAUDE_ARGS=(
     "-p" "$(cat "$PROMPT_FILE")"
 )
 
-# Change to repo directory if mounted
-if [ -d "/workspace/repo" ]; then
-    cd /workspace/repo
-fi
+# Change to working directory
+cd "$WORK_DIR"
 
 echo "Starting Claude Code worker..."
 echo "Job ID: ${JOB_ID:-unknown}"
 echo "Job Type: ${JOB_TYPE:-unknown}"
 echo "Project Key: ${PROJECT_KEY:-unknown}"
+echo "Working directory: $(pwd)"
 
 exec claude "${CLAUDE_ARGS[@]}" "${SKILLS_ARGS[@]}"

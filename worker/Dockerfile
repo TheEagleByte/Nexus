@@ -38,7 +38,7 @@ RUN groupadd -g 1000 worker \
     && useradd -u 1000 -g 1000 -m -s /bin/bash worker
 
 # Create workspace directories
-RUN mkdir -p /workspace/repo /workspace/output /workspace/skills/spoke /workspace/skills/project \
+RUN mkdir -p /workspace/repos /workspace/output /workspace/skills/spoke /workspace/skills/project \
     && chown -R worker:worker /workspace
 
 WORKDIR /workspace

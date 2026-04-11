@@ -134,7 +134,7 @@ public record WorkerLaunchRequest(
     string ProjectKey,
     JobType JobType,
     string PromptFilePath,
-    string RepoPath,
+    string RepoConfigFilePath,
     string OutputPath,
     string? SpokeSkillsPath,
     string? ProjectSkillsPath,
