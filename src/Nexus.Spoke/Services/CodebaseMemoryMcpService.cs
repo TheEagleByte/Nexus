@@ -11,6 +11,7 @@ public class CodebaseMemoryMcpService(
     private readonly object _lock = new();
     private Process? _process;
     private volatile CodebaseMemoryMcpStatus _status = CodebaseMemoryMcpStatus.Stopped;
+    private volatile bool _stopping;
     private string? _lastError;
 
     public async Task StartAsync(CancellationToken ct)
@@ -95,7 +96,12 @@ public class CodebaseMemoryMcpService(
                 await Task.Delay(500, ct);
             }
 
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested)
+            {
+                _status = CodebaseMemoryMcpStatus.Stopped;
+                await StopAsync(CancellationToken.None);
+                return;
+            }
 
             // Timeout — process started but never became ready.
             _status = CodebaseMemoryMcpStatus.Failed;
@@ -129,6 +135,7 @@ public class CodebaseMemoryMcpService(
         }
 
         logger.LogInformation("Stopping Codebase Memory MCP server");
+        _stopping = true;
 
         try
         {
@@ -153,6 +160,7 @@ public class CodebaseMemoryMcpService(
                 _process = null;
             }
             _status = CodebaseMemoryMcpStatus.Stopped;
+            _stopping = false;
             logger.LogInformation("Codebase Memory MCP server stopped");
         }
 
@@ -199,7 +207,7 @@ public class CodebaseMemoryMcpService(
 
     private void OnProcessExited(object? sender, EventArgs e)
     {
-        if (_status == CodebaseMemoryMcpStatus.Running)
+        if (_status == CodebaseMemoryMcpStatus.Running && !_stopping)
         {
             _status = CodebaseMemoryMcpStatus.Failed;
             _lastError = "MCP server process exited unexpectedly";
