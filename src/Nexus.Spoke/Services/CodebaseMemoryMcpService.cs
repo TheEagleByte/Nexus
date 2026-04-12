@@ -47,21 +47,20 @@ public class CodebaseMemoryMcpService(
             {
                 _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
                 _process.Exited += OnProcessExited;
+                _process.OutputDataReceived += (_, args) =>
+                {
+                    if (!string.IsNullOrEmpty(args.Data))
+                        logger.LogDebug("[MCP stdout] {Data}", args.Data);
+                };
+                _process.ErrorDataReceived += (_, args) =>
+                {
+                    if (!string.IsNullOrEmpty(args.Data))
+                        logger.LogDebug("[MCP stderr] {Data}", args.Data);
+                };
                 _process.Start();
+                _process.BeginOutputReadLine();
+                _process.BeginErrorReadLine();
             }
-
-            _process.BeginOutputReadLine();
-            _process.OutputDataReceived += (_, args) =>
-            {
-                if (!string.IsNullOrEmpty(args.Data))
-                    logger.LogDebug("[MCP stdout] {Data}", args.Data);
-            };
-            _process.BeginErrorReadLine();
-            _process.ErrorDataReceived += (_, args) =>
-            {
-                if (!string.IsNullOrEmpty(args.Data))
-                    logger.LogDebug("[MCP stderr] {Data}", args.Data);
-            };
 
             // Wait for startup with timeout
             var timeout = TimeSpan.FromSeconds(mcpConfig.StartupTimeoutSeconds);
@@ -127,38 +126,12 @@ public class CodebaseMemoryMcpService(
 
         try
         {
-            // Try graceful shutdown first
             lock (_lock)
             {
                 if (_process is not null && !_process.HasExited)
                 {
                     _process.Kill(entireProcessTree: true);
-                }
-            }
-
-            // Wait briefly for exit
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
-
-            try
-            {
-                lock (_lock)
-                {
-                    if (_process is not null && !_process.HasExited)
-                    {
-                        _process.WaitForExit(5000);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Force kill if graceful shutdown failed
-                lock (_lock)
-                {
-                    if (_process is not null && !_process.HasExited)
-                    {
-                        _process.Kill(entireProcessTree: true);
-                    }
+                    _process.WaitForExit(5000);
                 }
             }
         }
@@ -206,7 +179,9 @@ public class CodebaseMemoryMcpService(
         if (_status != CodebaseMemoryMcpStatus.Running)
             return null;
 
-        return $"http://localhost:{config.Value.CodebaseMemoryMcp.Port}";
+        // Containers use host.docker.internal to reach host services;
+        // localhost would resolve to the container's own loopback.
+        return $"http://host.docker.internal:{config.Value.CodebaseMemoryMcp.Port}";
     }
 
     public CodebaseMemoryMcpStatus GetStatus() => _status;
