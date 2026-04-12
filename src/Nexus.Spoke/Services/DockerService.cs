@@ -329,7 +329,10 @@ public class DockerService : IDockerService
                 Tmpfs = new Dictionary<string, string>
                 {
                     ["/tmp"] = "rw,noexec,nosuid,size=1g"
-                }
+                },
+                ExtraHosts = mcpEndpoint?.Contains("host.docker.internal") == true
+                    ? new List<string> { "host.docker.internal:host-gateway" }
+                    : new List<string>()
             },
             User = dockerConfig.ContainerUser
         };

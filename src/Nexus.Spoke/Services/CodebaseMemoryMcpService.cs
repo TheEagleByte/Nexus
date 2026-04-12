@@ -89,12 +89,10 @@ public class CodebaseMemoryMcpService(
 
             if (ct.IsCancellationRequested) return;
 
-            // Timeout — process started but never became ready. Leave it running;
-            // the health check loop will handle it.
-            _status = CodebaseMemoryMcpStatus.Running;
-            logger.LogWarning(
-                "MCP server startup timed out after {Timeout}s, assuming running (process is alive)",
-                mcpConfig.StartupTimeoutSeconds);
+            // Timeout — process started but never became ready.
+            _status = CodebaseMemoryMcpStatus.Failed;
+            _lastError = $"MCP server startup timed out after {mcpConfig.StartupTimeoutSeconds}s";
+            logger.LogWarning("MCP server startup timed out after {Timeout}s — port never became ready", mcpConfig.StartupTimeoutSeconds);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -141,6 +139,11 @@ public class CodebaseMemoryMcpService(
         }
         finally
         {
+            lock (_lock)
+            {
+                _process?.Dispose();
+                _process = null;
+            }
             _status = CodebaseMemoryMcpStatus.Stopped;
             logger.LogInformation("Codebase Memory MCP server stopped");
         }

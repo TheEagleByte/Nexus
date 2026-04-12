@@ -29,6 +29,18 @@ public class RepoPoolSyncWorker(
             logger.LogError(ex, "Repo pool initialization failed, continuing to sync loop");
         }
 
+        if (mcpService is not null)
+        {
+            try
+            {
+                await mcpService.ReindexAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Failed to trigger MCP reindex after initial clone");
+            }
+        }
+
         var intervalSeconds = Math.Max(30, config.Value.GitProvider.SyncIntervalSeconds);
         var interval = TimeSpan.FromSeconds(intervalSeconds);
         logger.LogInformation("Repo pool sync interval: {Interval}s", intervalSeconds);

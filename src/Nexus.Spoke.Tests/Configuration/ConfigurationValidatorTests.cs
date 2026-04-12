@@ -520,4 +520,26 @@ public class ConfigurationValidatorTests
         result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }
+
+    [Fact]
+    public void Validate_McpEnabled_EmptyNpxCommand_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.NpxCommand = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:NpxCommand is required when MCP is enabled", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpEnabled_EmptyPackageName_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.PackageName = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:PackageName is required when MCP is enabled", result.FailureMessage);
+    }
 }

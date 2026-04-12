@@ -71,7 +71,7 @@ GitProvider:
     #   DefaultBranch: "main"
 
 CodebaseMemoryMcp:
-  Enabled: true                        # Enable/disable the MCP server
+  Enabled: false                       # Enable/disable the MCP server
   Port: 3500                           # Port for the MCP server
   IndexPath: ""                        # Defaults to {workspace}/mcp-index
   NpxCommand: "npx"                    # Command to run npx (override for custom Node installs)

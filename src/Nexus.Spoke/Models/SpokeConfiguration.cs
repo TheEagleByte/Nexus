@@ -110,7 +110,7 @@ public class SpokeConfiguration
 
     public class CodebaseMemoryMcpConfig
     {
-        public bool Enabled { get; set; } = true;
+        public bool Enabled { get; set; } = false;
         public int Port { get; set; } = 3500;
         public string IndexPath { get; set; } = string.Empty;
         public string NpxCommand { get; set; } = "npx";
