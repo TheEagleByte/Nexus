@@ -68,11 +68,19 @@ public class CodebaseMemoryMcpService(
 
             while (startedAt.Elapsed < timeout && !ct.IsCancellationRequested)
             {
-                if (_process.HasExited)
+                Process? proc;
+                lock (_lock)
+                {
+                    proc = _process;
+                }
+
+                if (proc is null || proc.HasExited)
                 {
                     _status = CodebaseMemoryMcpStatus.Failed;
-                    _lastError = $"MCP server process exited with code {_process.ExitCode} during startup";
-                    logger.LogError("MCP server process exited during startup with code {ExitCode}", _process.ExitCode);
+                    _lastError = proc is null
+                        ? "MCP server process was stopped during startup"
+                        : $"MCP server process exited with code {proc.ExitCode} during startup";
+                    logger.LogError("MCP server process exited during startup");
                     return;
                 }
 

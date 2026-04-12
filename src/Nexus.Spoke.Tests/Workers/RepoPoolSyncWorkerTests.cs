@@ -68,19 +68,22 @@ public class RepoPoolSyncWorkerTests
     {
         var worker = CreateWorker(_mockMcpService.Object);
         using var cts = new CancellationTokenSource();
+        var reindexAttempted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _mockRepoPool.Setup(r => r.InitializeAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _mockMcpService.Setup(s => s.ReindexAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => reindexAttempted.TrySetResult(true))
             .ThrowsAsync(new InvalidOperationException("reindex failed"));
 
         await worker.StartAsync(cts.Token);
-        await Task.Delay(200);
+        await reindexAttempted.Task.WaitAsync(TimeSpan.FromSeconds(1));
         cts.Cancel();
         await worker.StopAsync(CancellationToken.None);
 
         // Worker should not throw — reindex error is caught and logged
         _mockRepoPool.Verify(r => r.InitializeAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockMcpService.Verify(s => s.ReindexAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
