@@ -218,9 +218,12 @@ public class DockerService : IDockerService
 
         _logger.LogInformation("Launching worker container {Name} for job {JobId}", containerName, request.JobId);
 
+        if (!File.Exists(request.RepoConfigFilePath))
+            throw new FileNotFoundException($"Repository config file not found: {request.RepoConfigFilePath}", request.RepoConfigFilePath);
+
         var binds = new List<string>
         {
-            $"{request.RepoPath}:/workspace/repo:rw",
+            $"{request.RepoConfigFilePath}:/workspace/repo-config.json:ro",
             $"{request.PromptFilePath}:/workspace/prompt.md:ro",
             $"{request.OutputPath}:/workspace/output:rw"
         };

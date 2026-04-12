@@ -25,6 +25,12 @@ public class JobAssignHandler(
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly JsonSerializerOptions SerializeOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
     public string CommandType => "job.assign";
 
     public async Task HandleAsync(CommandEnvelope command, CancellationToken cancellationToken)
@@ -119,10 +125,14 @@ public class JobAssignHandler(
         var outputPath = Path.Combine(jobDir, "output");
         Directory.CreateDirectory(outputPath);
 
+        // Build repo init config for container-side cloning
+        var repoInitConfig = BuildRepoInitConfig(assignment, projectKey);
+        var repoConfigFilePath = Path.Combine(jobDir, "repo-config.json");
+        var repoConfigJson = JsonSerializer.Serialize(repoInitConfig, SerializeOptions);
+        await File.WriteAllTextAsync(repoConfigFilePath, repoConfigJson, cancellationToken);
+
         // Resolve workspace paths
         var basePath = projectManager.GetProjectPath(projectKey);
-        var repoPath = Path.Combine(basePath, "repo");
-        Directory.CreateDirectory(repoPath);
 
         var spokeSkillsPath = Path.Combine(
             WorkspaceInitializer.ResolveBasePath(config.Value), "skills");
@@ -190,7 +200,7 @@ public class JobAssignHandler(
             projectKey,
             assignment.Type,
             promptPath,
-            repoPath,
+            repoConfigFilePath,
             outputPath,
             spokeSkillsPath,
             projectSkillsPath,
@@ -291,6 +301,54 @@ public class JobAssignHandler(
 
             jobCts.Dispose();
         }
+    }
+
+    private RepoInitConfig BuildRepoInitConfig(JobAssignment assignment, string projectKey)
+    {
+        var gitProviderConfig = config.Value.GitProvider;
+
+        var repoConfig = new RepoInitConfig
+        {
+            BranchTemplate = gitProviderConfig.BranchTemplate,
+            JobType = assignment.Type.ToString().ToLowerInvariant(),
+            ProjectKey = projectKey,
+            JobId = assignment.JobId.ToString()
+        };
+
+        // Build repo list from GitProvider config
+        if (gitProviderConfig.Repositories.Length > 0)
+        {
+            foreach (var repo in gitProviderConfig.Repositories)
+            {
+                repoConfig.Repositories.Add(new RepoEntry
+                {
+                    Name = repo.Name,
+                    CloneUrl = repo.RemoteUrl,
+                    DefaultBranch = string.IsNullOrWhiteSpace(repo.DefaultBranch) ? "main" : repo.DefaultBranch
+                });
+            }
+        }
+
+        // If job parameters specify repos, those override the global config
+        if (assignment.Parameters?.CustomFields?.TryGetValue("repositories", out var reposObj) == true
+            && reposObj is JsonElement reposElement
+            && reposElement.ValueKind == JsonValueKind.Array)
+        {
+            repoConfig.Repositories.Clear();
+            foreach (var repoElement in reposElement.EnumerateArray())
+            {
+                var entry = JsonSerializer.Deserialize<RepoEntry>(repoElement.GetRawText(), DeserializeOptions);
+                if (entry is null || string.IsNullOrWhiteSpace(entry.Name) || string.IsNullOrWhiteSpace(entry.CloneUrl))
+                    throw new InvalidOperationException("Invalid repository override entry: name and cloneUrl are required.");
+                entry.DefaultBranch = string.IsNullOrWhiteSpace(entry.DefaultBranch) ? "main" : entry.DefaultBranch;
+                repoConfig.Repositories.Add(entry);
+            }
+        }
+
+        logger.LogInformation("Built repo init config with {Count} repositories for job {JobId}",
+            repoConfig.Repositories.Count, assignment.JobId);
+
+        return repoConfig;
     }
 
     private static async Task<string?> ReadFileOrNullAsync(string path, CancellationToken cancellationToken = default)

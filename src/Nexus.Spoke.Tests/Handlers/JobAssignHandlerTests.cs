@@ -300,4 +300,180 @@ public class JobAssignHandlerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task HandleAsync_PassesRepoConfigFilePathInsteadOfRepoPath()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() },
+            GitProvider = new SpokeConfiguration.GitProviderConfig
+            {
+                BranchTemplate = "nexus/{type}/{key}",
+                Repositories =
+                [
+                    new SpokeConfiguration.RepositoryConfig
+                    {
+                        Name = "test-repo",
+                        RemoteUrl = "git@github.com:org/test-repo.git",
+                        DefaultBranch = "main"
+                    }
+                ]
+            }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var jobId = Guid.NewGuid();
+        var assignment = new JobAssignment(
+            jobId, Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "TEST-4" }),
+            false, DateTimeOffset.UtcNow);
+
+        var jobDir = Path.Combine(Path.GetTempPath(), "nexus-test", $"job-{jobId}");
+        Directory.CreateDirectory(jobDir);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("TEST-4"))
+            .ReturnsAsync(new ProjectInfo("TEST-4", "Test", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "TEST-4"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("TEST-4"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-4"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("TEST-4"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "TEST-4", ".meta"));
+
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("TEST-4", jobId))
+            .ReturnsAsync(jobDir);
+
+        WorkerLaunchRequest? capturedRequest = null;
+        _dockerServiceMock.Setup(m => m.LaunchWorkerAsync(It.IsAny<WorkerLaunchRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<WorkerLaunchRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync("container-xyz");
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(Path.Combine(jobDir, "repo-config.json"), capturedRequest!.RepoConfigFilePath);
+        Assert.True(File.Exists(capturedRequest.RepoConfigFilePath));
+
+        // Verify the config JSON content
+        var configJson = await File.ReadAllTextAsync(capturedRequest.RepoConfigFilePath);
+        var repoConfig = JsonSerializer.Deserialize<RepoInitConfig>(configJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.NotNull(repoConfig);
+        Assert.Single(repoConfig!.Repositories);
+        Assert.Equal("test-repo", repoConfig.Repositories[0].Name);
+        Assert.Equal("git@github.com:org/test-repo.git", repoConfig.Repositories[0].CloneUrl);
+        Assert.Equal("main", repoConfig.Repositories[0].DefaultBranch);
+        Assert.Equal("nexus/{type}/{key}", repoConfig.BranchTemplate);
+        Assert.Equal("implement", repoConfig.JobType);
+        Assert.Equal("TEST-4", repoConfig.ProjectKey);
+        Assert.Equal(jobId.ToString(), repoConfig.JobId);
+
+        // Cleanup
+        try { Directory.Delete(jobDir, true); } catch { /* best-effort cleanup */ }
+    }
+
+    [Fact]
+    public async Task HandleAsync_JobParameterReposOverrideGlobalConfig()
+    {
+        var config = new SpokeConfiguration
+        {
+            Capabilities = new SpokeConfiguration.CapabilitiesConfig { Docker = true },
+            Workspace = new SpokeConfiguration.WorkspaceConfig { BaseDirectory = Path.GetTempPath() },
+            GitProvider = new SpokeConfiguration.GitProviderConfig
+            {
+                BranchTemplate = "feature/{key}",
+                Repositories =
+                [
+                    new SpokeConfiguration.RepositoryConfig
+                    {
+                        Name = "global-repo",
+                        RemoteUrl = "git@github.com:org/global-repo.git",
+                        DefaultBranch = "main"
+                    }
+                ]
+            }
+        };
+        var handler = new JobAssignHandler(
+            _projectManagerMock.Object,
+            _jiraServiceMock.Object,
+            _dockerServiceMock.Object,
+            _outputStreamerMock.Object,
+            _lifecycleServiceMock.Object,
+            _jobArtifactsMock.Object,
+            _skillMergerMock.Object,
+            _promptAssemblerMock.Object,
+            _activeJobTracker,
+            _appLifetimeMock.Object,
+            Options.Create(config),
+            NullLogger<JobAssignHandler>.Instance);
+
+        var jobId = Guid.NewGuid();
+        var overrideRepos = JsonSerializer.SerializeToElement(new[]
+        {
+            new { name = "override-repo-a", cloneUrl = "git@github.com:org/repo-a.git", defaultBranch = "develop" },
+            new { name = "override-repo-b", cloneUrl = "git@github.com:org/repo-b.git", defaultBranch = "main" }
+        });
+
+        var assignment = new JobAssignment(
+            jobId, Guid.NewGuid(), JobType.Implement, "context",
+            new JobParameters(new Dictionary<string, object> { ["projectKey"] = "OVR-1", ["repositories"] = overrideRepos }),
+            false, DateTimeOffset.UtcNow);
+
+        var jobDir = Path.Combine(Path.GetTempPath(), "nexus-test", $"job-{jobId}");
+        Directory.CreateDirectory(jobDir);
+
+        _projectManagerMock.Setup(m => m.GetProjectAsync("OVR-1"))
+            .ReturnsAsync(new ProjectInfo("OVR-1", "Override", ProjectStatus.Active,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, "OVR-1"));
+        _projectManagerMock.Setup(m => m.GetProjectPath("OVR-1"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "OVR-1"));
+        _projectManagerMock.Setup(m => m.GetMetaPath("OVR-1"))
+            .Returns(Path.Combine(Path.GetTempPath(), "projects", "OVR-1", ".meta"));
+
+        _jobArtifactsMock.Setup(m => m.InitializeJobAsync("OVR-1", jobId))
+            .ReturnsAsync(jobDir);
+
+        WorkerLaunchRequest? capturedRequest = null;
+        _dockerServiceMock.Setup(m => m.LaunchWorkerAsync(It.IsAny<WorkerLaunchRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<WorkerLaunchRequest, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync("container-override");
+
+        var command = new CommandEnvelope("job.assign", assignment, DateTimeOffset.UtcNow);
+        await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.NotNull(capturedRequest);
+        Assert.True(File.Exists(capturedRequest!.RepoConfigFilePath));
+
+        var configJson = await File.ReadAllTextAsync(capturedRequest.RepoConfigFilePath);
+        var repoConfig = JsonSerializer.Deserialize<RepoInitConfig>(configJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.NotNull(repoConfig);
+        // Job-parameter repos should override global config
+        Assert.Equal(2, repoConfig!.Repositories.Count);
+        Assert.Equal("override-repo-a", repoConfig.Repositories[0].Name);
+        Assert.Equal("git@github.com:org/repo-a.git", repoConfig.Repositories[0].CloneUrl);
+        Assert.Equal("develop", repoConfig.Repositories[0].DefaultBranch);
+        Assert.Equal("override-repo-b", repoConfig.Repositories[1].Name);
+        // Global repo should NOT be present
+        Assert.DoesNotContain(repoConfig.Repositories, r => r.Name == "global-repo");
+
+        // Cleanup
+        try { Directory.Delete(jobDir, true); } catch { /* best-effort cleanup */ }
+    }
 }
