@@ -94,6 +94,7 @@ public class SpokeConfiguration
     public class GitProviderConfig
     {
         public string Type { get; set; } = string.Empty;
+        public string CredentialsRef { get; set; } = "docker";
         public RepositoryConfig[] Repositories { get; set; } = [];
         public string BranchTemplate { get; set; } = "nexus/{type}/{key}";
         public int SyncIntervalSeconds { get; set; } = 300;

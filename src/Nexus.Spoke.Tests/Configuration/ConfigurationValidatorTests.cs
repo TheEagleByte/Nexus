@@ -223,9 +223,23 @@ public class ConfigurationValidatorTests
         Spoke = new SpokeConfiguration.SpokeIdentityConfig { Id = "spoke-001", Name = "Test Spoke" },
         Hub = new SpokeConfiguration.HubConnectionConfig { Url = "wss://hub.test/api/hub", Token = "test-token" },
         Capabilities = new SpokeConfiguration.CapabilitiesConfig { Git = true },
+        Docker = new SpokeConfiguration.DockerConfig
+        {
+            Credentials = new SpokeConfiguration.CredentialsConfig
+            {
+                Git = new SpokeConfiguration.GitCredentialsConfig
+                {
+                    AuthMethod = "token",
+                    Token = "ghp_test123",
+                    UserName = "Test User",
+                    UserEmail = "test@example.com"
+                }
+            }
+        },
         GitProvider = new SpokeConfiguration.GitProviderConfig
         {
             Type = "github",
+            CredentialsRef = "docker",
             SyncIntervalSeconds = 300,
             BranchTemplate = "nexus/{type}/{key}",
             Repositories =
@@ -374,6 +388,48 @@ public class ConfigurationValidatorTests
     {
         var config = CreateWithGitProvider();
         config.GitProvider.Repositories = [];
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    // --- CredentialsRef validation (NEX-187) ---
+
+    [Fact]
+    public void Validate_CredentialsRefDocker_NoDockerCreds_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.Docker.Credentials.Git.Token = "";
+        config.Docker.Credentials.Git.SshKeyPath = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("no token or SSH key configured", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_UnknownCredentialsRef_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.CredentialsRef = "vault";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("not a recognized credentials source", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_EmptyCredentialsRef_Fails()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.CredentialsRef = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("GitProvider:CredentialsRef is required", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_NullRepositories_Succeeds()
+    {
+        var config = CreateWithGitProvider();
+        config.GitProvider.Repositories = null!;
         var result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }

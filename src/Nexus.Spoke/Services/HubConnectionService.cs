@@ -118,8 +118,8 @@ public class HubConnectionService(
         if (cfg.Capabilities.Docker) capabilities.Add("docker");
         if (cfg.Capabilities.PrMonitoring) capabilities.Add("pr_monitoring");
 
-        var repos = cfg.GitProvider.Repositories
-            .Select(r => new RepositoryDto(r.Name, r.RemoteUrl))
+        var repos = (cfg.GitProvider.Repositories ?? [])
+            .Select(r => new RepositoryDto(r.Name, r.RemoteUrl, r.DefaultBranch))
             .ToArray();
 
         var jiraConfig = cfg.Capabilities.Jira
@@ -132,7 +132,8 @@ public class HubConnectionService(
             Repos: repos,
             JiraConfig: jiraConfig,
             Integrations: capabilities.ToArray(),
-            Description: $"Nexus Spoke - {cfg.Spoke.Name}"
+            Description: $"Nexus Spoke - {cfg.Spoke.Name}",
+            GitProviderType: cfg.GitProvider.Type
         );
 
         var registration = new SpokeRegistration(

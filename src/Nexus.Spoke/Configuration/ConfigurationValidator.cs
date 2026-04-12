@@ -68,9 +68,25 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 !string.Equals(gp.Type, "gitlab", StringComparison.OrdinalIgnoreCase))
                 failures.Add("GitProvider:Type must be 'github' or 'gitlab'");
 
-            for (var i = 0; i < gp.Repositories.Length; i++)
+            if (string.IsNullOrWhiteSpace(gp.CredentialsRef))
             {
-                var repo = gp.Repositories[i];
+                failures.Add("GitProvider:CredentialsRef is required");
+            }
+            else if (string.Equals(gp.CredentialsRef, "docker", StringComparison.OrdinalIgnoreCase))
+            {
+                var git = options.Docker.Credentials.Git;
+                if (string.IsNullOrWhiteSpace(git.Token) && string.IsNullOrWhiteSpace(git.SshKeyPath))
+                    failures.Add("GitProvider:CredentialsRef is 'docker' but Docker:Credentials:Git has no token or SSH key configured");
+            }
+            else
+            {
+                failures.Add($"GitProvider:CredentialsRef '{gp.CredentialsRef}' is not a recognized credentials source (use 'docker')");
+            }
+
+            var repos = gp.Repositories ?? [];
+            for (var i = 0; i < repos.Length; i++)
+            {
+                var repo = repos[i];
                 if (string.IsNullOrWhiteSpace(repo.Name))
                     failures.Add($"GitProvider:Repositories[{i}]:Name is required");
                 if (string.IsNullOrWhiteSpace(repo.RemoteUrl))
@@ -90,7 +106,6 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                 if (!bt.Contains("{key}"))
                     failures.Add("GitProvider:BranchTemplate must contain {key} placeholder");
 
-                // Check for invalid chars in the literal portions (strip placeholders first)
                 var stripped = bt
                     .Replace("{type}", "", StringComparison.Ordinal)
                     .Replace("{key}", "", StringComparison.Ordinal)
@@ -101,7 +116,6 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
                     stripped.Contains("@{"))
                     failures.Add("GitProvider:BranchTemplate contains invalid git branch characters");
 
-                // Check endings on the original template (not stripped, where placeholders leave trailing slashes)
                 if (bt.EndsWith(".lock", StringComparison.Ordinal) ||
                     bt.EndsWith(".", StringComparison.Ordinal) || bt.EndsWith("/", StringComparison.Ordinal))
                     failures.Add("GitProvider:BranchTemplate must not end with '.', '/', or '.lock'");

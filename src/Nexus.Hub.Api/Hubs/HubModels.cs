@@ -25,12 +25,14 @@ public record SpokeProfileDto(
     RepositoryDto[] Repos,
     JiraConfigDto? JiraConfig,
     string[] Integrations,
-    string Description
+    string Description,
+    string? GitProviderType = null
 );
 
 public record RepositoryDto(
     string Name,
-    string RemoteUrl
+    string RemoteUrl,
+    string? DefaultBranch = null
 );
 
 public record JiraConfigDto(
