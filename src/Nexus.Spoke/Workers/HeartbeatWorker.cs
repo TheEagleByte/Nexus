@@ -9,7 +9,8 @@ public class HeartbeatWorker(
     IOptions<SpokeConfiguration> config,
     ResourceMonitor resourceMonitor,
     ILogger<HeartbeatWorker> logger,
-    IRepoPoolService? repoPool = null) : BackgroundService
+    IRepoPoolService? repoPool = null,
+    ICodebaseMemoryMcpService? mcpService = null) : BackgroundService
 {
     internal static readonly TimeSpan DefaultHeartbeatInterval = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(10);
@@ -80,6 +81,16 @@ public class HeartbeatWorker(
                     kvp => $"repo:{kvp.Key}",
                     kvp => $"{kvp.Value.Status}|{kvp.Value.LastSyncedAt?.ToString("O") ?? "never"}");
             }
+        }
+
+        if (mcpService is not null)
+        {
+            metadata ??= new Dictionary<string, string>();
+            var mcpStatus = mcpService.GetStatus();
+            var mcpEndpoint = mcpService.GetEndpoint();
+            metadata["mcp:codebase-memory"] = mcpEndpoint is not null
+                ? $"{mcpStatus}|{mcpEndpoint}"
+                : mcpStatus.ToString();
         }
 
         var heartbeat = new SpokeHeartbeat(

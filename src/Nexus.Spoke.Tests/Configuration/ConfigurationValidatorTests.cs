@@ -433,4 +433,113 @@ public class ConfigurationValidatorTests
         var result = _validator.Validate(null, config);
         Assert.True(result.Succeeded);
     }
+
+    // --- CodebaseMemoryMcp validation (NEX-196) ---
+
+    [Fact]
+    public void Validate_McpEnabled_ValidConfig_Succeeds()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.Port = 3500;
+        config.CodebaseMemoryMcp.HealthCheckIntervalSeconds = 30;
+        config.CodebaseMemoryMcp.StartupTimeoutSeconds = 60;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_McpDisabled_SkipsValidation()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = false;
+        config.CodebaseMemoryMcp.Port = 0; // Invalid but should be skipped
+        config.CodebaseMemoryMcp.HealthCheckIntervalSeconds = 1;
+        config.CodebaseMemoryMcp.StartupTimeoutSeconds = 1;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(80)]
+    [InlineData(1023)]
+    public void Validate_McpPort_TooLow_Fails(int port)
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.Port = port;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:Port must be between 1024 and 65535", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpPort_TooHigh_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.Port = 65536;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:Port must be between 1024 and 65535", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpHealthCheckInterval_TooLow_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.HealthCheckIntervalSeconds = 5;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:HealthCheckIntervalSeconds must be at least 10", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpStartupTimeout_TooLow_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.StartupTimeoutSeconds = 5;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:StartupTimeoutSeconds must be at least 10", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpPort_BoundaryValues_Succeeds()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.Port = 1024;
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+
+        config.CodebaseMemoryMcp.Port = 65535;
+        result = _validator.Validate(null, config);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_McpEnabled_EmptyNpxCommand_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.NpxCommand = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:NpxCommand is required when MCP is enabled", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_McpEnabled_EmptyPackageName_Fails()
+    {
+        var config = CreateValid();
+        config.CodebaseMemoryMcp.Enabled = true;
+        config.CodebaseMemoryMcp.PackageName = "";
+        var result = _validator.Validate(null, config);
+        Assert.True(result.Failed);
+        Assert.Contains("CodebaseMemoryMcp:PackageName is required when MCP is enabled", result.FailureMessage);
+    }
 }

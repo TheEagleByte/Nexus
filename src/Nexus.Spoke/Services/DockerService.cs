@@ -12,13 +12,18 @@ public class DockerService : IDockerService
     private readonly DockerClient _client;
     private readonly SpokeConfiguration _config;
     private readonly ILogger<DockerService> _logger;
+    private readonly ICodebaseMemoryMcpService? _mcpService;
     private readonly SemaphoreSlim _imageLock = new(1, 1);
     private volatile bool _imageVerified;
 
-    public DockerService(IOptions<SpokeConfiguration> config, ILogger<DockerService> logger)
+    public DockerService(
+        IOptions<SpokeConfiguration> config,
+        ILogger<DockerService> logger,
+        ICodebaseMemoryMcpService? mcpService = null)
     {
         _config = config.Value;
         _logger = logger;
+        _mcpService = mcpService;
         _client = new DockerClientConfiguration().CreateClient();
     }
 
@@ -295,6 +300,14 @@ public class DockerService : IDockerService
         if (!string.IsNullOrWhiteSpace(branchTemplate))
             envVars.Add($"NEXUS_BRANCH_TEMPLATE={branchTemplate}");
 
+        // NEX-196: Expose MCP server endpoint to containers
+        var mcpEndpoint = _mcpService?.GetEndpoint();
+        if (!string.IsNullOrEmpty(mcpEndpoint))
+        {
+            envVars.Add($"CODEBASE_MEMORY_MCP_URL={mcpEndpoint}");
+            _logger.LogDebug("Exposing MCP endpoint {Endpoint} to container", mcpEndpoint);
+        }
+
         var createParams = new CreateContainerParameters
         {
             Image = dockerConfig.WorkerImage,
@@ -316,7 +329,10 @@ public class DockerService : IDockerService
                 Tmpfs = new Dictionary<string, string>
                 {
                     ["/tmp"] = "rw,noexec,nosuid,size=1g"
-                }
+                },
+                ExtraHosts = mcpEndpoint?.Contains("host.docker.internal") == true
+                    ? new List<string> { "host.docker.internal:host-gateway" }
+                    : new List<string>()
             },
             User = dockerConfig.ContainerUser
         };

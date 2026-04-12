@@ -19,10 +19,13 @@ public class RepoPoolSyncWorkerTests
         }
     };
 
-    private RepoPoolSyncWorker CreateWorker() => new(
+    private readonly Mock<ICodebaseMemoryMcpService> _mockMcpService = new();
+
+    private RepoPoolSyncWorker CreateWorker(ICodebaseMemoryMcpService? mcpService = null) => new(
         _mockRepoPool.Object,
         Options.Create(_config),
-        NullLogger<RepoPoolSyncWorker>.Instance);
+        NullLogger<RepoPoolSyncWorker>.Instance,
+        mcpService);
 
     [Fact]
     public async Task ExecuteAsync_CallsInitializeOnStartup()
@@ -39,6 +42,48 @@ public class RepoPoolSyncWorkerTests
         await worker.StopAsync(CancellationToken.None);
 
         _mockRepoPool.Verify(r => r.InitializeAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TriggersReindexAfterInitialClone()
+    {
+        var worker = CreateWorker(_mockMcpService.Object);
+        using var cts = new CancellationTokenSource();
+
+        _mockRepoPool.Setup(r => r.InitializeAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _mockMcpService.Setup(s => s.ReindexAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => cts.Cancel())
+            .Returns(Task.CompletedTask);
+
+        await worker.StartAsync(cts.Token);
+        await Task.Delay(200);
+        await worker.StopAsync(CancellationToken.None);
+
+        _mockMcpService.Verify(s => s.ReindexAsync(It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReindexFailureAfterInit_DoesNotCrash()
+    {
+        var worker = CreateWorker(_mockMcpService.Object);
+        using var cts = new CancellationTokenSource();
+        var reindexAttempted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _mockRepoPool.Setup(r => r.InitializeAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _mockMcpService.Setup(s => s.ReindexAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => reindexAttempted.TrySetResult(true))
+            .ThrowsAsync(new InvalidOperationException("reindex failed"));
+
+        await worker.StartAsync(cts.Token);
+        await reindexAttempted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cts.Cancel();
+        await worker.StopAsync(CancellationToken.None);
+
+        // Worker should not throw — reindex error is caught and logged
+        _mockRepoPool.Verify(r => r.InitializeAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mockMcpService.Verify(s => s.ReindexAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

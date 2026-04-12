@@ -69,3 +69,12 @@ GitProvider:
     # - Name: "my-repo"
     #   RemoteUrl: "git@github.com:org/my-repo.git"
     #   DefaultBranch: "main"
+
+CodebaseMemoryMcp:
+  Enabled: false                       # Enable/disable the MCP server
+  Port: 3500                           # Port for the MCP server
+  IndexPath: ""                        # Defaults to {workspace}/mcp-index
+  NpxCommand: "npx"                    # Command to run npx (override for custom Node installs)
+  PackageName: "codebase-memory-mcp"   # npm package name
+  HealthCheckIntervalSeconds: 30       # How often to check if the MCP server is alive
+  StartupTimeoutSeconds: 60            # Max time to wait for MCP server to start

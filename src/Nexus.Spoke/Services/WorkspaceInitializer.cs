@@ -8,7 +8,7 @@ public class WorkspaceInitializer(
     IOptions<SpokeConfiguration> config,
     ILogger<WorkspaceInitializer> logger) : IHostedService
 {
-    private static readonly string[] Subdirectories = ["skills", "projects", "logs", "templates", "memories", "repos"];
+    private static readonly string[] Subdirectories = ["skills", "projects", "logs", "templates", "memories", "repos", "mcp-index"];
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {

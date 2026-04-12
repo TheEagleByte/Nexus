@@ -56,6 +56,10 @@ try
     builder.Services.AddSingleton<IRepoPoolService, RepoPoolService>();
     builder.Services.AddHostedService<RepoPoolSyncWorker>();
 
+    // NEX-196: Codebase Memory MCP server
+    builder.Services.AddSingleton<ICodebaseMemoryMcpService, CodebaseMemoryMcpService>();
+    builder.Services.AddHostedService<CodebaseMemoryMcpWorker>();
+
     // NEX-140: Conversation runner
     builder.Services.AddSingleton<IConversationRunner, ConversationRunner>();
 
