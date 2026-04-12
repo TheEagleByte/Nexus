@@ -89,10 +89,12 @@ if [ -f "$REPO_CONFIG" ]; then
 
         REPO_DIR="/workspace/repos/$REPO_NAME"
 
-        echo "Cloning $REPO_NAME from $CLONE_URL (branch: $DEFAULT_BRANCH)..."
+        # Redact URL for logging to avoid leaking embedded tokens
+        SAFE_URL=$(echo "$CLONE_URL" | sed -E 's|://[^@]+@|://***@|')
+        echo "Cloning $REPO_NAME from $SAFE_URL (branch: $DEFAULT_BRANCH)..."
 
         if ! git clone --branch "$DEFAULT_BRANCH" "$CLONE_URL" "$REPO_DIR"; then
-            echo "ERROR: Failed to clone repository $REPO_NAME from $CLONE_URL" >&2
+            echo "ERROR: Failed to clone repository $REPO_NAME" >&2
             exit 1
         fi
 
