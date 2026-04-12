@@ -10,6 +10,7 @@ public class SpokeConfiguration
     public ApprovalConfig Approval { get; set; } = new();
     public DockerConfig Docker { get; set; } = new();
     public GitProviderConfig GitProvider { get; set; } = new();
+    public CodebaseMemoryMcpConfig CodebaseMemoryMcp { get; set; } = new();
 
     public class SpokeIdentityConfig
     {
@@ -105,5 +106,16 @@ public class SpokeConfiguration
         public string Name { get; set; } = string.Empty;
         public string RemoteUrl { get; set; } = string.Empty;
         public string? DefaultBranch { get; set; }
+    }
+
+    public class CodebaseMemoryMcpConfig
+    {
+        public bool Enabled { get; set; } = true;
+        public int Port { get; set; } = 3500;
+        public string IndexPath { get; set; } = string.Empty;
+        public string NpxCommand { get; set; } = "npx";
+        public string PackageName { get; set; } = "codebase-memory-mcp";
+        public int HealthCheckIntervalSeconds { get; set; } = 30;
+        public int StartupTimeoutSeconds { get; set; } = 60;
     }
 }

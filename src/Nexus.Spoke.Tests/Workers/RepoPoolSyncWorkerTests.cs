@@ -19,10 +19,13 @@ public class RepoPoolSyncWorkerTests
         }
     };
 
-    private RepoPoolSyncWorker CreateWorker() => new(
+    private readonly Mock<ICodebaseMemoryMcpService> _mockMcpService = new();
+
+    private RepoPoolSyncWorker CreateWorker(ICodebaseMemoryMcpService? mcpService = null) => new(
         _mockRepoPool.Object,
         Options.Create(_config),
-        NullLogger<RepoPoolSyncWorker>.Instance);
+        NullLogger<RepoPoolSyncWorker>.Instance,
+        mcpService);
 
     [Fact]
     public async Task ExecuteAsync_CallsInitializeOnStartup()

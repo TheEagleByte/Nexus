@@ -25,7 +25,10 @@ public class HeartbeatWorkerTests
         }
     };
 
-    private HeartbeatWorker CreateWorker(ILogger<HeartbeatWorker>? logger = null, IRepoPoolService? repoPool = null)
+    private HeartbeatWorker CreateWorker(
+        ILogger<HeartbeatWorker>? logger = null,
+        IRepoPoolService? repoPool = null,
+        ICodebaseMemoryMcpService? mcpService = null)
     {
         _mockResourceMonitor.Setup(r => r.GetCurrentUsage())
             .Returns(new ResourceUsageDto(512, 25.0, 10240));
@@ -36,7 +39,8 @@ public class HeartbeatWorkerTests
             Options.Create(_config),
             _mockResourceMonitor.Object,
             logger ?? NullLogger<HeartbeatWorker>.Instance,
-            repoPool);
+            repoPool,
+            mcpService);
     }
 
     [Fact]
@@ -180,5 +184,53 @@ public class HeartbeatWorkerTests
 
         Assert.NotNull(captured);
         Assert.Null(captured.Metadata);
+    }
+
+    [Fact]
+    public async Task SendHeartbeatAsync_WithMcpService_IncludesMcpMetadata()
+    {
+        _mockConnection.Setup(c => c.IsConnected).Returns(true);
+        var mockMcp = new Mock<ICodebaseMemoryMcpService>();
+        mockMcp.Setup(m => m.GetStatus()).Returns(CodebaseMemoryMcpStatus.Running);
+        mockMcp.Setup(m => m.GetEndpoint()).Returns("http://localhost:3500");
+
+        SpokeHeartbeat? captured = null;
+        _mockConnection.Setup(c => c.SendAsync("Heartbeat", It.IsAny<SpokeHeartbeat>(), It.IsAny<CancellationToken>()))
+            .Callback<string, SpokeHeartbeat, CancellationToken>((_, hb, _) => captured = hb)
+            .Returns(Task.CompletedTask);
+
+        var worker = CreateWorker(mcpService: mockMcp.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await worker.SendHeartbeatAsync(cts.Token);
+
+        Assert.NotNull(captured);
+        Assert.NotNull(captured.Metadata);
+        Assert.True(captured.Metadata.ContainsKey("mcp:codebase-memory"));
+        Assert.Contains("Running", captured.Metadata["mcp:codebase-memory"]);
+        Assert.Contains("http://localhost:3500", captured.Metadata["mcp:codebase-memory"]);
+    }
+
+    [Fact]
+    public async Task SendHeartbeatAsync_WithMcpServiceNotRunning_IncludesStatusOnly()
+    {
+        _mockConnection.Setup(c => c.IsConnected).Returns(true);
+        var mockMcp = new Mock<ICodebaseMemoryMcpService>();
+        mockMcp.Setup(m => m.GetStatus()).Returns(CodebaseMemoryMcpStatus.Stopped);
+        mockMcp.Setup(m => m.GetEndpoint()).Returns((string?)null);
+
+        SpokeHeartbeat? captured = null;
+        _mockConnection.Setup(c => c.SendAsync("Heartbeat", It.IsAny<SpokeHeartbeat>(), It.IsAny<CancellationToken>()))
+            .Callback<string, SpokeHeartbeat, CancellationToken>((_, hb, _) => captured = hb)
+            .Returns(Task.CompletedTask);
+
+        var worker = CreateWorker(mcpService: mockMcp.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await worker.SendHeartbeatAsync(cts.Token);
+
+        Assert.NotNull(captured);
+        Assert.NotNull(captured.Metadata);
+        Assert.Equal("Stopped", captured.Metadata["mcp:codebase-memory"]);
     }
 }

@@ -7,7 +7,8 @@ namespace Nexus.Spoke.Workers;
 public class RepoPoolSyncWorker(
     IRepoPoolService repoPool,
     IOptions<SpokeConfiguration> config,
-    ILogger<RepoPoolSyncWorker> logger) : BackgroundService
+    ILogger<RepoPoolSyncWorker> logger,
+    ICodebaseMemoryMcpService? mcpService = null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -39,6 +40,19 @@ public class RepoPoolSyncWorker(
             try
             {
                 await repoPool.SyncAllAsync(stoppingToken);
+
+                // Notify MCP server to reindex after sync completes
+                if (mcpService is not null)
+                {
+                    try
+                    {
+                        await mcpService.ReindexAsync(stoppingToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogWarning(ex, "MCP reindex after sync failed, classification still works via raw repo access");
+                    }
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

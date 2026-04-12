@@ -122,6 +122,18 @@ public class ConfigurationValidator : IValidateOptions<SpokeConfiguration>
             }
         }
 
+        if (options.CodebaseMemoryMcp.Enabled)
+        {
+            var mcp = options.CodebaseMemoryMcp;
+
+            if (mcp.Port is < 1024 or > 65535)
+                failures.Add("CodebaseMemoryMcp:Port must be between 1024 and 65535");
+            if (mcp.HealthCheckIntervalSeconds < 10)
+                failures.Add("CodebaseMemoryMcp:HealthCheckIntervalSeconds must be at least 10");
+            if (mcp.StartupTimeoutSeconds < 10)
+                failures.Add("CodebaseMemoryMcp:StartupTimeoutSeconds must be at least 10");
+        }
+
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
