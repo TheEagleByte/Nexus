@@ -324,7 +324,7 @@ public class JobAssignHandler(
                 {
                     Name = repo.Name,
                     CloneUrl = repo.RemoteUrl,
-                    DefaultBranch = repo.DefaultBranch ?? "main"
+                    DefaultBranch = string.IsNullOrWhiteSpace(repo.DefaultBranch) ? "main" : repo.DefaultBranch
                 });
             }
         }
@@ -338,8 +338,10 @@ public class JobAssignHandler(
             foreach (var repoElement in reposElement.EnumerateArray())
             {
                 var entry = JsonSerializer.Deserialize<RepoEntry>(repoElement.GetRawText(), DeserializeOptions);
-                if (entry is not null)
-                    repoConfig.Repositories.Add(entry);
+                if (entry is null || string.IsNullOrWhiteSpace(entry.Name) || string.IsNullOrWhiteSpace(entry.CloneUrl))
+                    throw new InvalidOperationException("Invalid repository override entry: name and cloneUrl are required.");
+                entry.DefaultBranch = string.IsNullOrWhiteSpace(entry.DefaultBranch) ? "main" : entry.DefaultBranch;
+                repoConfig.Repositories.Add(entry);
             }
         }
 

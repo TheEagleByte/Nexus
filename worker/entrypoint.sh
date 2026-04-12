@@ -53,12 +53,7 @@ if [ -f "/tmp/.ssh/id_key" ]; then
     fi
 fi
 
-# Token auth setup — spoke passes GIT_TOKEN env var for HTTPS credential helper
-if [ -n "${GIT_TOKEN:-}" ]; then
-    # Set up a generic credential helper since we don't have a remote URL yet
-    git config --global credential.helper \
-        "!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f"
-fi
+# Token auth — GIT_TOKEN is used per-clone below (no global credential helper)
 
 # ---- Repository initialization phase ----
 WORK_DIR="/workspace"
@@ -87,13 +82,26 @@ if [ -f "$REPO_CONFIG" ]; then
         CLONE_URL=$(jq -r ".repositories[$i].cloneUrl" "$REPO_CONFIG")
         DEFAULT_BRANCH=$(jq -r ".repositories[$i].defaultBranch // \"main\"" "$REPO_CONFIG")
 
+        if [[ ! "$REPO_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "ERROR: Invalid repository name '$REPO_NAME'" >&2
+            exit 1
+        fi
+
         REPO_DIR="/workspace/repos/$REPO_NAME"
 
         # Redact URL for logging to avoid leaking embedded tokens
         SAFE_URL=$(echo "$CLONE_URL" | sed -E 's|://[^@]+@|://***@|')
         echo "Cloning $REPO_NAME from $SAFE_URL (branch: $DEFAULT_BRANCH)..."
 
-        if ! git clone --branch "$DEFAULT_BRANCH" "$CLONE_URL" "$REPO_DIR"; then
+        if [[ -n "${GIT_TOKEN:-}" && "$CLONE_URL" == https://* ]]; then
+            CLONE_HOST="${CLONE_URL#https://}"
+            CLONE_HOST="${CLONE_HOST%%/*}"
+            if ! git -c "credential.https://$CLONE_HOST.helper=!f() { echo \"username=x-access-token\"; echo \"password=$GIT_TOKEN\"; }; f" \
+                clone --branch "$DEFAULT_BRANCH" "$CLONE_URL" "$REPO_DIR"; then
+                echo "ERROR: Failed to clone repository $REPO_NAME" >&2
+                exit 1
+            fi
+        elif ! git clone --branch "$DEFAULT_BRANCH" "$CLONE_URL" "$REPO_DIR"; then
             echo "ERROR: Failed to clone repository $REPO_NAME" >&2
             exit 1
         fi
